@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { EventEmitter } from 'node:events'
 
@@ -298,6 +298,17 @@ try {
     if (connectionThrows) throw new Error('connection unavailable')
     return connectionRejection
   } }
+  const workspaceRecords = []
+  const workspaceRegistry = {
+    list: () => workspaceRecords,
+    create: async (workspacePath, title) => {
+      const existing = workspaceRecords.find(workspace => workspace.path === workspacePath)
+      if (existing) return existing
+      const workspace = { id: 'workspace-' + (workspaceRecords.length + 1), path: workspacePath, title: title || basename(workspacePath) }
+      workspaceRecords.push(workspace)
+      return workspace
+    },
+  }
   const hostCtx = {
     fiber: { entry: { id: 'caps' } },
     tools: { register: value => { agentTool = value; return () => {} } },
@@ -308,14 +319,20 @@ try {
       if (key === 'configEditor') return configEditor
       if (key === 'connection') return connectionAvailable ? connection : undefined
       if (key === 'skills') return hostRefreshSkills
+      if (key === 'workspaceRegistry') return workspaceRegistry
     },
   }
   host.apply(hostCtx, {})
-  assert.equal(routes.size, 15)
+  assert.equal(routes.size, 16)
   assert.equal(agentTool.output.schema.type, 'object')
   const listed = await agentTool.execute({ action: 'list' })
   assert.equal(listed.ok, true)
   assert.equal(isLosslessJson(listed), true)
+  const createdWorkspace = await invoke('/__dsh-capability-switch/workspace/create', 'POST', { name: 'new-workspace', parent: temp })
+  assert.equal(createdWorkspace.status, 200)
+  assert.equal(createdWorkspace.data.workspace.path, join(temp, 'new-workspace'))
+  const stateWithWorkspaces = await invoke('/__dsh-capability-switch/state', 'GET')
+  assert.equal(stateWithWorkspaces.data.workspaces.length, 1)
   assert.deepEqual(agentTool.output.render({ action: 'list' }, listed), [
     { type: 'text', text: JSON.stringify(listed, null, 2) },
   ])
