@@ -1,15 +1,24 @@
 # 更新记录
 
-## 1.3.0
+## 1.3.1
 
-明确项目级技能使用当前工作区的 `.agents/skills`。
+修正项目级技能目录为当前工作区的 `.agents/skills`。
 
-- 项目技能按当前会话工作区扫描 `$WORKSPACE/.dsh/skills` 和 `$WORKSPACE/.agents/skills`。
+- 移除 1.3.0 的工作区根 `skills` provider。
+- 项目技能扫描 `$WORKSPACE/.dsh/skills` 和 `$WORKSPACE/.agents/skills`。
 - 新建技能可选择用户级或项目级；项目级写入当前工作区 `.agents/skills`。
 - 当前工作区 `.agents/skills` 支持新建、编辑、启停和删除。
 - 项目级 `.dsh/skills` 只展示；全局 Agent 源始终只读。
+- 项目级写入限制在当前工作区内，拒绝通过 `.agents` 软链接写出工作区。
 - README 明确项目技能目录、profile 和工作区的区别。
 - 不扫描工作区根目录的 `skills` 或 `Skills`。
+
+## 1.3.0
+
+已被 1.3.1 替代。
+
+- 新增工作区根目录 `skills` 的项目技能 provider。
+- 该目录约定不正确，1.3.1 已移除。
 
 ## 1.2.9
 
