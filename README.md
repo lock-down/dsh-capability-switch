@@ -9,6 +9,7 @@
 ### Skills
 
 - 搜索、新建、编辑、启停和删除用户级技能。
+- 主列表只显示 DSH 用户级和项目级技能；全局 Agent 源仅出现在同步预览中。
 - 列表按技能名去重，同名时优先显示 DSH 目录中的条目。
 - 删除本地新建的真实技能时移入回收目录。
 - 从 `~/.agents/skills` 同步到 `~/.dsh/skills` 时创建软链接，不复制文件。
@@ -57,12 +58,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.2.5.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.2.6.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.2.5"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.2.6"
 ```
 
 ## 使用

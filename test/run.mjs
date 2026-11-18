@@ -46,6 +46,7 @@ try {
   await fs.mkdir(agentSkill, { recursive: true })
   await fs.writeFile(join(agentSkill, 'SKILL.md'), '# Agent v1\n')
   await fs.writeFile(join(agentSkill, 'asset.txt'), 'asset\n')
+  assert.equal((await skills.listSkills()).some(skill => skill.source === 'user-agents'), false)
   const skillPreview = await skills.previewAgentSkillSync()
   assert.equal(skillPreview.items.find(item => item.name === 'agent-demo').action, 'import')
   await assert.rejects(() => fs.access(join(temp, 'skills', 'agent-demo')))
