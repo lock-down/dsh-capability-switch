@@ -99,6 +99,36 @@ try {
   assert.equal(await fs.readFile(join(deleteSource, 'SKILL.md'), 'utf8'), '---\nname: link-delete\ndescription: test\n---\n\n# Keep me\n')
   await assert.rejects(() => fs.access(deleteLink))
 
+  const projectWorkspace = join(temp, 'project-workspace')
+  const projectSkill = join(projectWorkspace, 'skills', 'project-demo')
+  await fs.mkdir(projectSkill, { recursive: true })
+  await fs.writeFile(join(projectSkill, 'SKILL.md'), '---\nname: project-demo\ndescription: Project demo skill\n---\n\n# Project Demo\n')
+  const scannedProject = await skills.scanProjectSkills(projectWorkspace)
+  assert.equal(scannedProject.length, 1)
+  assert.equal(scannedProject[0].source, 'project-skills')
+  const uppercaseWorkspace = join(temp, 'uppercase-workspace')
+  await fs.mkdir(join(uppercaseWorkspace, 'Skills', 'uppercase-demo'), { recursive: true })
+  await fs.writeFile(join(uppercaseWorkspace, 'Skills', 'uppercase-demo', 'SKILL.md'), '---\nname: uppercase-demo\ndescription: Uppercase only\n---\n\n# Uppercase\n')
+  assert.equal((await skills.scanProjectSkills(uppercaseWorkspace)).length, 0)
+  assert.equal((await skills.listSkills(projectWorkspace)).find(skill => skill.name === 'project-demo').source, 'project-skills')
+  const abort = new AbortController()
+  let projectProvider
+  const projectDispose = skills.installProjectSkillsProvider({
+    get: key => key === 'skills' ? {
+      registerProvider: create => {
+        projectProvider = create({ signal: abort.signal, invalidate() {} })
+        return () => abort.abort()
+      },
+    } : undefined,
+  })
+  const projectCandidates = await projectProvider.list({ cwd: projectWorkspace })
+  assert.equal(projectCandidates.length, 1)
+  assert.equal(projectCandidates[0].provider, 'capability-switch-project')
+  assert.equal(projectCandidates[0].source, 'project-skills')
+  const projectDefinition = await projectProvider.get(projectCandidates[0])
+  assert.match(projectDefinition.content, /# Project Demo/)
+  projectDispose()
+
   for (const name of ['partial-a', 'partial-b']) {
     await fs.mkdir(join(temp, 'agents', 'skills', name), { recursive: true })
     await fs.writeFile(join(temp, 'agents', 'skills', name, 'SKILL.md'), '# ' + name + '\n')
@@ -271,8 +301,9 @@ try {
   let hostRefreshCount = 0
   const hostRefreshSkills = {
     registerProvider: create => {
-      create({ signal: null, invalidate() {} })
-      return () => { hostRefreshCount += 1 }
+      const abort = new AbortController()
+      create({ signal: abort.signal, invalidate() {} })
+      return () => { abort.abort(); hostRefreshCount += 1 }
     },
   }
   const webServer = { register: route => { routes.set(route.path, route); return () => {} } }

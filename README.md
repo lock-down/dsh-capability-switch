@@ -27,6 +27,7 @@
 - 用户级 `~/.dsh/skills`
 - 项目级 `$WORKSPACE/.dsh/skills`
 - 项目级 `$WORKSPACE/.agents/skills`
+- 项目级 `$WORKSPACE/skills`
 - DSH 内置技能
 - 其他 `custom` 和 `runtime` 来源
 
@@ -39,14 +40,18 @@
 ```text
 $WORKSPACE/.dsh/skills
 $WORKSPACE/.agents/skills
+$WORKSPACE/skills
 ```
 
-`$WORKSPACE` 是当前会话绑定的工作区路径。例如在默认工作区中打开会话时，插件读取：
+`$WORKSPACE` 是当前会话绑定的工作区路径。例如在工作区 `/Users/<user>/Documents/Personal` 中打开会话时，插件读取：
 
 ```text
-/Users/<user>/Documents/deepseek-harness/default-workspace/.dsh/skills
-/Users/<user>/Documents/deepseek-harness/default-workspace/.agents/skills
+/Users/<user>/Documents/Personal/.dsh/skills
+/Users/<user>/Documents/Personal/.agents/skills
+/Users/<user>/Documents/Personal/skills
 ```
+
+工作区根目录只识别小写 `skills`。该目录由插件注册的项目技能 provider 加载，并监听目录变化。它不会复制文件，也不会修改项目技能。
 
 `default`、`desktop` 等名称是 DSH profile，只决定插件配置和 MCP 配置所在位置，不决定项目级技能目录。插件页脚会同时显示当前工作区、profile 和 DSH 目录。
 
@@ -78,12 +83,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.2.9.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.3.0.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.2.9"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.3.0"
 ```
 
 ## 使用
