@@ -59,7 +59,7 @@ try {
   const deduped = (await skills.listSkills()).filter(skill => skill.name === 'agent-demo')
   assert.equal(deduped.length, 1)
   assert.equal(deduped[0].source, 'user-dsh')
-  await assert.rejects(() => skills.deleteSkill(join(agentSkill, 'SKILL.md'), true), /只允许删除用户级技能/)
+  await assert.rejects(() => skills.deleteSkill(join(agentSkill, 'SKILL.md'), true), /只允许删除用户级或当前工作区/)
   assert.ok(await fs.readFile(join(agentSkill, 'SKILL.md'), 'utf8'))
   const linkedEntry = join(agentLink, 'SKILL.md')
   const linkedRead = await skills.readSkill(linkedEntry)
@@ -100,34 +100,21 @@ try {
   await assert.rejects(() => fs.access(deleteLink))
 
   const projectWorkspace = join(temp, 'project-workspace')
-  const projectSkill = join(projectWorkspace, 'skills', 'project-demo')
+  const projectSkill = join(projectWorkspace, '.agents', 'skills', 'project-demo')
   await fs.mkdir(projectSkill, { recursive: true })
   await fs.writeFile(join(projectSkill, 'SKILL.md'), '---\nname: project-demo\ndescription: Project demo skill\n---\n\n# Project Demo\n')
-  const scannedProject = await skills.scanProjectSkills(projectWorkspace)
-  assert.equal(scannedProject.length, 1)
-  assert.equal(scannedProject[0].source, 'project-skills')
-  const uppercaseWorkspace = join(temp, 'uppercase-workspace')
-  await fs.mkdir(join(uppercaseWorkspace, 'Skills', 'uppercase-demo'), { recursive: true })
-  await fs.writeFile(join(uppercaseWorkspace, 'Skills', 'uppercase-demo', 'SKILL.md'), '---\nname: uppercase-demo\ndescription: Uppercase only\n---\n\n# Uppercase\n')
-  assert.equal((await skills.scanProjectSkills(uppercaseWorkspace)).length, 0)
-  assert.equal((await skills.listSkills(projectWorkspace)).find(skill => skill.name === 'project-demo').source, 'project-skills')
-  const abort = new AbortController()
-  let projectProvider
-  const projectDispose = skills.installProjectSkillsProvider({
-    get: key => key === 'skills' ? {
-      registerProvider: create => {
-        projectProvider = create({ signal: abort.signal, invalidate() {} })
-        return () => abort.abort()
-      },
-    } : undefined,
-  })
-  const projectCandidates = await projectProvider.list({ cwd: projectWorkspace })
-  assert.equal(projectCandidates.length, 1)
-  assert.equal(projectCandidates[0].provider, 'capability-switch-project')
-  assert.equal(projectCandidates[0].source, 'project-skills')
-  const projectDefinition = await projectProvider.get(projectCandidates[0])
-  assert.match(projectDefinition.content, /# Project Demo/)
-  projectDispose()
+  const listedProject = (await skills.listSkills(projectWorkspace)).find(skill => skill.name === 'project-demo')
+  assert.equal(listedProject.source, 'project-agents')
+  assert.equal(listedProject.writable, true)
+  await assert.rejects(() => skills.createSkill({ name: 'project-no-cwd', description: 'No cwd', scope: 'project' }), /需要当前工作区/)
+  const createdProject = await skills.createSkill({ name: 'project-created', description: 'Created project skill', body: '# Created', scope: 'project', cwd: projectWorkspace })
+  assert.equal(createdProject.scope, 'project')
+  assert.ok(createdProject.path.startsWith(join(projectWorkspace, '.agents', 'skills')))
+  assert.equal((await skills.listSkills(projectWorkspace)).find(skill => skill.name === 'project-created').source, 'project-agents')
+  await skills.updateSkill(createdProject.path, '---\nname: project-created\ndescription: Updated project skill\n---\n\n# Updated\n', projectWorkspace)
+  const deletedProject = await skills.deleteSkill(createdProject.path, true, projectWorkspace)
+  assert.equal(deletedProject.unlinked, false)
+  await assert.rejects(() => fs.access(createdProject.path))
 
   for (const name of ['partial-a', 'partial-b']) {
     await fs.mkdir(join(temp, 'agents', 'skills', name), { recursive: true })
@@ -365,6 +352,10 @@ try {
   const refreshBeforeRoute = hostRefreshCount
   const createResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-refresh', description: 'route refresh', body: '# Route refresh' })
   assert.equal(createResponse.status, 200)
+  const projectCreateResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-project', description: 'route project', body: '# Route project', scope: 'project', cwd: projectWorkspace })
+  assert.equal(projectCreateResponse.status, 200)
+  assert.ok(projectCreateResponse.data.path.startsWith(join(projectWorkspace, '.agents', 'skills')))
+  await skills.deleteSkill(projectCreateResponse.data.path, true, projectWorkspace)
   assert.ok(hostRefreshCount > refreshBeforeRoute)
   console.log('Skills sync, MCP listing/import/control, Host routes, and agent tool passed.')
 } finally {

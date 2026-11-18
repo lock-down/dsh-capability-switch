@@ -8,7 +8,8 @@
 
 ### Skills
 
-- 搜索、新建、编辑、启停和删除用户级技能。
+- 搜索、新建、编辑、启停和删除用户级与项目级技能。
+- 新建技能时选择用户级或项目级；项目级写入当前工作区 `.agents/skills`。
 - 主列表只显示 DSH 用户级和项目级技能；全局 Agent 源仅出现在同步预览中。
 - 列表按技能名去重，同名时优先显示 DSH 目录中的条目。
 - 删除本地新建的真实技能时移入回收目录。
@@ -27,7 +28,6 @@
 - 用户级 `~/.dsh/skills`
 - 项目级 `$WORKSPACE/.dsh/skills`
 - 项目级 `$WORKSPACE/.agents/skills`
-- 项目级 `$WORKSPACE/skills`
 - DSH 内置技能
 - 其他 `custom` 和 `runtime` 来源
 
@@ -40,7 +40,6 @@
 ```text
 $WORKSPACE/.dsh/skills
 $WORKSPACE/.agents/skills
-$WORKSPACE/skills
 ```
 
 `$WORKSPACE` 是当前会话绑定的工作区路径。例如在工作区 `/Users/<user>/Documents/Personal` 中打开会话时，插件读取：
@@ -48,14 +47,13 @@ $WORKSPACE/skills
 ```text
 /Users/<user>/Documents/Personal/.dsh/skills
 /Users/<user>/Documents/Personal/.agents/skills
-/Users/<user>/Documents/Personal/skills
 ```
 
-工作区根目录只识别小写 `skills`。该目录由插件注册的项目技能 provider 加载，并监听目录变化。它不会复制文件，也不会修改项目技能。
+项目级技能由 DSH 的文件系统技能 provider 加载。插件负责统一展示和管理，不复制文件。
 
 `default`、`desktop` 等名称是 DSH profile，只决定插件配置和 MCP 配置所在位置，不决定项目级技能目录。插件页脚会同时显示当前工作区、profile 和 DSH 目录。
 
-项目级技能只读。需要修改时，请先切换到对应技能的用户级来源，或把技能同步到用户级目录。
+当前工作区 `.agents/skills` 中的项目级技能支持新建、编辑、启停和删除。项目级 `.dsh/skills` 由 DSH 管理，插件只展示。全局 `~/.agents/skills` 始终只读。
 
 ### MCP
 
