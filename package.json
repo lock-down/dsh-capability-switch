@@ -1,6 +1,6 @@
 {
   "name": "dsh-capability-switch",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A DSH sidebar plugin for managing Skills and MCP servers.",
   "license": "MIT",
   "author": "lock-down",
@@ -42,6 +42,9 @@
   "dependencies": {
     "smol-toml": "^1.9.1",
     "yaml": "^2.9.1"
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.3 <0.3.0"
   },
   "dsh": {
     "bundle": {

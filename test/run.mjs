@@ -250,7 +250,14 @@ try {
 
   const routes = new Map()
   let agentTool
+  let connectionAvailable = true
+  let connectionRejection
+  let connectionThrows = false
   const webServer = { register: route => { routes.set(route.path, route); return () => {} } }
+  const connection = { requestRejection: () => {
+    if (connectionThrows) throw new Error('connection unavailable')
+    return connectionRejection
+  } }
   const hostCtx = {
     fiber: { entry: { id: 'caps' } },
     tools: { register: value => { agentTool = value; return () => {} } },
@@ -259,6 +266,7 @@ try {
       if (key === 'mcpManager') return manager
       if (key === 'webServer') return webServer
       if (key === 'configEditor') return configEditor
+      if (key === 'connection') return connectionAvailable ? connection : undefined
     },
   }
   host.apply(hostCtx, {})
@@ -282,6 +290,15 @@ try {
     await pending
     return await done
   }
+  connectionAvailable = false
+  assert.equal((await invoke('/__dsh-capability-switch/state', 'GET')).status, 403)
+  connectionAvailable = true
+  connectionRejection = 401
+  assert.equal((await invoke('/__dsh-capability-switch/state', 'GET')).status, 401)
+  connectionRejection = undefined
+  connectionThrows = true
+  assert.equal((await invoke('/__dsh-capability-switch/state', 'GET')).status, 403)
+  connectionThrows = false
   const stateResponse = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateResponse.status, 200)
   assert.ok(Array.isArray(stateResponse.data.skills))
