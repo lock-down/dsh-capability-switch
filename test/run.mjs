@@ -310,7 +310,8 @@ try {
     let complete
     const done = new Promise(resolve => { complete = resolve })
     const res = { statusCode: 200, setHeader() {}, end(text) { complete({ status: this.statusCode, data: JSON.parse(text) }) } }
-    const pending = routes.get(path).handler(req, res)
+    const routePath = new URL(path, 'http://127.0.0.1').pathname
+    const pending = routes.get(routePath).handler(req, res)
     if (body !== undefined) req.emit('data', Buffer.from(JSON.stringify(body)))
     req.emit('end')
     await pending
@@ -328,6 +329,8 @@ try {
   const stateResponse = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateResponse.status, 200)
   assert.ok(Array.isArray(stateResponse.data.skills))
+  const workspaceResponse = await invoke('/__dsh-capability-switch/state?cwd=' + encodeURIComponent(temp), 'GET')
+  assert.equal(workspaceResponse.data.workspace, temp)
   const refreshBeforeRoute = hostRefreshCount
   const createResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-refresh', description: 'route refresh', body: '# Route refresh' })
   assert.equal(createResponse.status, 200)
