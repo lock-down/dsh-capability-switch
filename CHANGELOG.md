@@ -1,5 +1,13 @@
 # 更新记录
 
+## 1.2.9
+
+修正 profile 显示。
+
+- 从 Config Editor 的 profile 配置路径推导真实 profile 名称。
+- 页脚不再把未知 profile 显示为 `default`。
+- 项目级技能仍按当前会话工作区扫描。
+
 ## 1.2.8
 
 明确项目级技能来自当前工作区。
