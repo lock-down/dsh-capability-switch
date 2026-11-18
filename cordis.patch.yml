@@ -1,0 +1,9 @@
+- insert:
+    - id: capability-switch
+      name: 'dsh-capability-switch'
+      config:
+        sidebarVisible: true
+        sidebarLabel: '能力管理'
+        defaultTab: 'skills'
+        showDescriptions: true
+        compactRows: false

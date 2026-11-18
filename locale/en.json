@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Skills & MCP capabilities",
+    "description": "Manage Skills and MCP servers with a CC Switch-inspired unified list from the Capabilities sidebar page or Settings → Capabilities. Search, create, edit, toggle, delete, and test MCP connections. Skills writes are limited to user-level roots and project entries are read-only; MCP changes affect the active DSH profile. Display settings customize the sidebar entry, default tab, descriptions, and row density and persist in the DSH plugin configuration."
+  }
+}
