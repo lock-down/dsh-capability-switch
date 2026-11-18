@@ -40,7 +40,7 @@ try {
   await fs.access(removed.trash)
   assert.equal(removed.unlinked, false)
   assert.equal((await skills.listSkills()).length, 0)
-  await assert.rejects(() => skills.toggleSkill(join(temp, 'outside.md'), false), /用户级技能/)
+  await assert.rejects(() => skills.toggleSkill(join(temp, 'outside.md'), false), /只读|用户级技能/)
 
   const agentSkill = join(temp, 'agents', 'skills', 'agent-demo')
   await fs.mkdir(agentSkill, { recursive: true })
@@ -58,6 +58,8 @@ try {
   const deduped = (await skills.listSkills()).filter(skill => skill.name === 'agent-demo')
   assert.equal(deduped.length, 1)
   assert.equal(deduped[0].source, 'user-dsh')
+  await assert.rejects(() => skills.deleteSkill(join(agentSkill, 'SKILL.md'), true), /只允许删除用户级技能/)
+  assert.ok(await fs.readFile(join(agentSkill, 'SKILL.md'), 'utf8'))
   const linkedEntry = join(agentLink, 'SKILL.md')
   const linkedRead = await skills.readSkill(linkedEntry)
   assert.equal(linkedRead.path, join(await fs.realpath(agentSkill), 'SKILL.md'))
@@ -246,6 +248,7 @@ try {
   assert.equal(config.servers['codex-app'].enabled, false)
 
   const host = await import(pathToFileURL(join(root, 'lib/index.js')))
+  assert.deepEqual(host.inject, ['tools', 'skills'])
   assert.deepEqual(host.normalizePreferences({ defaultTab: 'mcp', sidebarLabel: ' 工具 ' }), { sidebarVisible: true, sidebarLabel: '技能与MCP', defaultTab: 'mcp', showDescriptions: true, compactRows: true })
 
   const routes = new Map()
