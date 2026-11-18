@@ -148,9 +148,14 @@ try {
   assert.equal((await fakeSkills.get('global-agent-hidden')).name, 'global-agent-hidden')
 
   let refreshInvalidated = 0
+  let refreshEvent
   const refreshSkills = { invalidateCache: () => { refreshInvalidated += 1 } }
-  assert.equal(skills.invalidateSkillCatalog({ get: key => key === 'skills' ? refreshSkills : undefined, emit() {} }), true)
+  assert.equal(skills.invalidateSkillCatalog({
+    get: key => key === 'skills' ? refreshSkills : undefined,
+    emit: (name, payload) => { refreshEvent = { name, payload } },
+  }), true)
   assert.equal(refreshInvalidated, 1)
+  assert.deepEqual(refreshEvent, { name: 'plugin-manager/changed', payload: { reason: 'plugin' } })
   assert.equal(skills.invalidateSkillCatalog({ get: () => undefined, emit() {} }), false)
 
   const mcp = await import(pathToFileURL(join(root, 'lib/mcp.js')))
