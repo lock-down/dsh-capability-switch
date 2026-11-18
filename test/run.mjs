@@ -146,6 +146,12 @@ try {
   assert.equal((await fakeSkills.list()).length, 7)
   assert.equal((await fakeSkills.get('global-agent-hidden')).name, 'global-agent-hidden')
 
+  let refreshInvalidated = 0
+  const refreshSkills = { invalidateCache: () => { refreshInvalidated += 1 } }
+  assert.equal(skills.invalidateSkillCatalog({ get: key => key === 'skills' ? refreshSkills : undefined, emit() {} }), true)
+  assert.equal(refreshInvalidated, 1)
+  assert.equal(skills.invalidateSkillCatalog({ get: () => undefined, emit() {} }), false)
+
   const mcp = await import(pathToFileURL(join(root, 'lib/mcp.js')))
   let config = { servers: {} }
   const manager = {
@@ -256,6 +262,13 @@ try {
   let connectionAvailable = true
   let connectionRejection
   let connectionThrows = false
+  let hostRefreshCount = 0
+  const hostRefreshSkills = {
+    registerProvider: create => {
+      create({ signal: null, invalidate() {} })
+      return () => { hostRefreshCount += 1 }
+    },
+  }
   const webServer = { register: route => { routes.set(route.path, route); return () => {} } }
   const connection = { requestRejection: () => {
     if (connectionThrows) throw new Error('connection unavailable')
@@ -270,6 +283,7 @@ try {
       if (key === 'webServer') return webServer
       if (key === 'configEditor') return configEditor
       if (key === 'connection') return connectionAvailable ? connection : undefined
+      if (key === 'skills') return hostRefreshSkills
     },
   }
   host.apply(hostCtx, {})
@@ -281,6 +295,9 @@ try {
   assert.deepEqual(agentTool.output.render({ action: 'list' }, listed), [
     { type: 'text', text: JSON.stringify(listed, null, 2) },
   ])
+  const refreshBeforeTool = hostRefreshCount
+  await agentTool.execute({ action: 'skill_create', name: 'tool-refresh', description: 'tool refresh', body: '# Tool refresh' })
+  assert.ok(hostRefreshCount > refreshBeforeTool)
   async function invoke(path, method, body) {
     const req = new EventEmitter()
     Object.assign(req, { method, url: path, headers: {} })
@@ -305,6 +322,10 @@ try {
   const stateResponse = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateResponse.status, 200)
   assert.ok(Array.isArray(stateResponse.data.skills))
+  const refreshBeforeRoute = hostRefreshCount
+  const createResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-refresh', description: 'route refresh', body: '# Route refresh' })
+  assert.equal(createResponse.status, 200)
+  assert.ok(hostRefreshCount > refreshBeforeRoute)
   console.log('Skills sync, MCP listing/import/control, Host routes, and agent tool passed.')
 } finally {
   if (resolve(temp).startsWith(resolve(tmpdir()))) await fs.rm(temp, { recursive: true, force: true })
