@@ -124,12 +124,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.1.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.2.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.1"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.2"
 ```
 
 ## 自动更新
@@ -144,7 +144,7 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 - 有 HMR 时安装后自动加载；没有 HMR 时提示重启 DSH。
 - 自动更新不会修改 Skills、MCP、工作区或同步状态。
 
-顶部显示当前版本、自动更新开关和“检查更新”。发现新版本时，状态条会同时显示最新版本号和当前版本号，并提供“更新到该版本”按钮；没有可用更新时，手动检查会明确显示“当前已是最新版本”和当前版本号。关闭自动更新后仍可手动检查和安装。设置保存在 `~/.dsh/capability-switch/update-preferences.json`。
+顶部显示当前版本、自动更新开关和“检查更新”。发现新版本时，状态条会同时显示最新版本号和当前版本号，并提供“更新到该版本”按钮；没有可用更新时，手动检查会明确显示“当前已是最新版本”和当前版本号。更新检查只刷新更新状态，不会重新加载或禁用 Skills、MCP 列表。关闭自动更新后仍可手动检查和安装。设置保存在 `~/.dsh/capability-switch/update-preferences.json`。
 
 `1.5.0` 是首个带自动更新机制的版本；`1.4.9` 及更早版本需要手动安装一次 `1.5.0`，之后的新版本才会自动更新。
 
@@ -225,6 +225,7 @@ npm pack
 - SSE 映射、表单与 JSON 编辑
 - Host 路由、代理工具和无损 JSON 输出
 - npm registry 更新检查、稳定版本筛选、无更新状态和本地安装拒绝自动更新
+- 更新操作与 Skills、MCP 列表状态及 busy 状态隔离
 
 主要文件：
 

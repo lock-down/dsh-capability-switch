@@ -19,6 +19,10 @@ for (const file of ['lib/client.js', 'lib/index.js', 'lib/mcp.js', 'lib/skills.j
   const checked = spawnSync(process.execPath, ['--check', join(root, file)], { encoding: 'utf8' })
   assert.equal(checked.status, 0, file + ' syntax error: ' + checked.stderr)
 }
+const clientSource = await fs.readFile(join(root, 'lib/client.js'), 'utf8')
+assert.doesNotMatch(clientSource, /perform\('update-/)
+assert.match(clientSource, /setData\(current => \(\{ \.\.\.current, update: result \}\)\)/)
+assert.match(clientSource, /const \[updateBusy, setUpdateBusy\] = useState\(''\)/)
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
