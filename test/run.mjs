@@ -348,7 +348,13 @@ try {
   const updateCalls = []
   const registryManager = {
     listBundles: async () => [{ name: 'dsh-capability-switch', version: '1.0.0', source: 'dsh-capability-switch@1.0.0', update: 'registry' }],
-    listVersions: async () => ({ status: 'listed', versions: [{ version: '9.9.9', bundle: true, prerelease: false }] }),
+    listVersions: async () => ({ status: 'listed', versions: [
+      { version: '10.0.0-beta.1', bundle: true, prerelease: true },
+      { version: '10.0.0', bundle: true, prerelease: false, incompatible: { name: 'dsh-capability-switch' } },
+      { version: '9.10.0', bundle: true, prerelease: false, deprecated: 'test' },
+      { version: '9.9.9', bundle: true, prerelease: false },
+      { version: '9.9.8', bundle: true, prerelease: false },
+    ] }),
     updateBundle: async (name, version) => { updateCalls.push([name, version]); return { result: { application: 'applied' } } },
   }
   const updater = updateModule.createUpdateManager({ get: () => registryManager })
@@ -377,6 +383,15 @@ try {
   const localUpdate = await localUpdater.check({ auto: true })
   assert.equal(localUpdate.state, 'unsupported')
   assert.equal(localUpdate.supported, false)
+  const currentUpdater = updateModule.createUpdateManager({ get: () => ({
+    ...registryManager,
+    listVersions: async () => ({ status: 'listed', versions: [] }),
+  }) })
+  const currentUpdate = await currentUpdater.check()
+  assert.equal(currentUpdate.state, 'current')
+  assert.equal(currentUpdate.current, '1.0.0')
+  assert.equal(currentUpdate.latest, null)
+  assert.equal(currentUpdate.error, null)
 
   const host = await import(pathToFileURL(join(root, 'lib/index.js')))
   assert.deepEqual(host.inject, ['tools', 'skills'])
