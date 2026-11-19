@@ -2,7 +2,48 @@
 
 一个 DSH 侧边栏插件，用来管理本机的 Skills 和 MCP。界面使用 DSH 主题令牌，不嵌入 iframe，入口固定为 `技能与MCP`。
 
+它在 Host 层接管 DSH 的技能扫描结果，默认不把 `~/.agents/skills` 全量加载到系统技能目录。只有你明确同步的技能才会进入 DSH，让 DSH 的技能列表保持干净、可控。
+
 ![Skills 管理界面](docs/screenshots/overview.png)
+
+## 接管 DSH 技能加载
+
+DSH 默认会把全局 Agent 目录作为技能来源。插件在 `ctx.skills` 服务层接管 `list`、`snapshot` 和 `get`：
+
+- 全局 `~/.agents/skills` 不进入模型技能目录。
+- 全局 Agent 技能不会在会话里被动加载。
+- 不删除、不移动、不修改 Agent 源文件。
+- 全局 Agent 目录只出现在同步预览中。
+
+同步是显式的：
+
+1. 打开“从 Agent 目录同步”。
+2. 选择软链接或复制。
+3. 勾选需要的技能。
+4. 确认后只同步选中的技能到 `~/.dsh/skills`。
+
+因此不会出现“`~/.agents/skills` 里有什么，DSH 就强制加载什么”的情况。DSH 最终只看到你选中的技能。
+
+接管对所有 Agent 模式生效，包括 PTC、standard、minimal 和 cordis。
+
+### 保留正常加载的来源
+
+以下来源仍会正常扫描和加载：
+
+- 用户级 `~/.dsh/skills`
+- 项目级 `$WORKSPACE/.dsh/skills`
+- 项目级 `$WORKSPACE/.agents/skills`
+- DSH 内置技能
+- 其他 `custom` 和 `runtime` 来源
+
+只有全局 `~/.agents/skills` 被排除。项目级 `.agents/skills` 属于工作区内容，继续参与当前工作区加载。
+
+### 效果
+
+- 技能目录更短，减少无关技能进入上下文。
+- 避免 Agent 目录中的实验或临时技能被自动触发。
+- 可以按需同步，随时移除，不影响 Agent 原件。
+- 需要隔离副本时使用复制模式，修改和删除都不会回写源文件。
 
 ## 功能
 
@@ -21,20 +62,6 @@
 - 同步前逐项预览，可选择同步方式和要处理的技能。
 - 已有正确目标会跳过；不同链接、真实目录或旧副本会先备份，再替换。
 - 删除软链接同步技能时只移除 DSH 链接；删除复制同步技能时只移除 DSH 副本。
-
-### 技能接管
-
-插件在 Host 层隐藏全局 `~/.agents/skills`，对 PTC、standard、minimal、cordis 等所有 Agent 模式生效。
-
-以下来源继续正常扫描和加载：
-
-- 用户级 `~/.dsh/skills`
-- 项目级 `$WORKSPACE/.dsh/skills`
-- 项目级 `$WORKSPACE/.agents/skills`
-- DSH 内置技能
-- 其他 `custom` 和 `runtime` 来源
-
-全局 Agent 目录只作为同步来源，不出现在模型技能目录中。
 
 ### 项目级技能
 
@@ -79,7 +106,7 @@ $WORKSPACE/.agents/skills
 
 ## 安装
 
-当前版本针对 DSH `0.2.2-rc.3` 开发和验证。DSH 的其他版本可能调整服务接口。
+当前版本针对 DSH `0.2.2-rc.5` 开发和验证。DSH 的其他版本可能调整服务接口。
 
 从源码安装：
 
@@ -163,6 +190,7 @@ npm pack
 - Skills 新建、编辑、启停、删除和软链接同步
 - 复制同步、内容一致跳过、更新重复制和副本删除
 - 同名技能去重与技能来源接管
+- 全局 Agent 目录排除、会话目录不被全量加载
 - 项目级、用户级、内置和全局 Agent 来源
 - 所有已注册工作区的项目技能扫描与跨工作区编辑
 - 已注册工作区鉴权，拒绝未注册路径
