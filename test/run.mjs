@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { EventEmitter } from 'node:events'
+import { spawnSync } from 'node:child_process'
 
 function isLosslessJson(value) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
@@ -14,6 +15,10 @@ function isLosslessJson(value) {
 }
 
 const root = resolve(new URL('..', import.meta.url).pathname)
+for (const file of ['lib/client.js', 'lib/index.js', 'lib/mcp.js', 'lib/skills.js']) {
+  const checked = spawnSync(process.execPath, ['--check', join(root, file)], { encoding: 'utf8' })
+  assert.equal(checked.status, 0, file + ' syntax error: ' + checked.stderr)
+}
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
