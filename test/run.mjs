@@ -214,14 +214,20 @@ try {
   const configEditor = {
     documentPath: profilePatch,
     entries: () => [standaloneEntry],
-    edit: async (_entry, update) => { config = update(config) },
+    edit: async (entry, update) => {
+      if (entry === standaloneEntry) standaloneEntry.options.config = update(standaloneEntry.options.config)
+      else config = update(config)
+    },
   }
   const ctx = { get: key => key === 'mcpManager' ? manager : key === 'configEditor' ? configEditor : key === 'pluginManager' ? pluginManager : undefined }
   await mcp.saveMcp(ctx, { name: 'local', transport: 'stdio', command: 'npx', args: ['-y', 'demo'], env: {}, enabled: true })
   assert.equal((await mcp.listMcp(ctx))[0].command, 'npx')
   assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').source, 'standalone')
-  assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').writable, false)
+  assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').writable, true)
   assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').canToggle, true)
+  await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'pen2', args: ['--edited'], env: {}, enabled: true })
+  assert.equal(standaloneEntry.options.config.command, 'pen2')
+  assert.deepEqual(standaloneEntry.options.config.args, ['--edited'])
   await mcp.toggleMcp(ctx, 'pencil', false)
   assert.equal(standaloneEnabled, false)
   await mcp.toggleMcp(ctx, 'pencil', true)
@@ -231,6 +237,9 @@ try {
   await mcp.saveMcp(ctx, { name: 'local', originalName: 'local', transport: 'streamable-http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer test' }, enabled: true })
   assert.equal(config.servers.local.command, '')
   assert.equal(config.servers.local.url, 'https://example.com/mcp')
+  await mcp.saveMcp(ctx, { name: 'local', originalName: 'local', transport: 'sse', url: 'https://example.com/sse', headers: {}, enabled: true })
+  assert.equal(config.servers.local.transport, 'streamable-http')
+  assert.equal(config.servers.local.url, 'https://example.com/sse')
   assert.deepEqual((await mcp.testMcp(ctx, 'local')).toolNames, ['local.tool'])
   await assert.rejects(() => mcp.deleteMcp(ctx, 'local', false), /确认/)
   await mcp.deleteMcp(ctx, 'local', true)
@@ -240,12 +249,15 @@ try {
   await fs.writeFile(join(temp, '.claude.json'), JSON.stringify({ mcpServers: {
     pencil: { command: 'should-not-overwrite' },
     'remote-app': { command: 'npx', args: ['-y', 'remote'], env: { TOKEN: 'secret' } },
+    'sse-app': { type: 'sse', url: 'https://example.com/sse', headers: { 'X-Test': 'yes' } },
   } }))
   await fs.writeFile(join(temp, '.codex', 'config.toml'), '[mcp_servers.codex-app]\ncommand = "codex-mcp"\nargs = ["--stdio"]\n[mcp_servers.pencil]\ncommand = "different-pencil"\n')
   let preview = await mcp.listMcpImports(ctx, temp)
   assert.equal(preview.servers.filter(row => row.name === 'pencil').length, 2)
   assert.ok(preview.servers.filter(row => row.name === 'pencil').every(row => row.conflict && row.exists))
   assert.equal(preview.servers.find(row => row.name === 'remote-app').env, undefined)
+  assert.equal(preview.servers.find(row => row.name === 'sse-app').transport, 'streamable-http')
+  assert.equal(preview.servers.find(row => row.name === 'sse-app').url, 'https://example.com/sse')
   const staleId = preview.servers.find(row => row.name === 'remote-app').id
   const claude = JSON.parse(await fs.readFile(join(temp, '.claude.json'), 'utf8'))
   claude.mcpServers['remote-app'].command = 'changed-after-preview'

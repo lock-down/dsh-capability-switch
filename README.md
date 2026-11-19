@@ -62,7 +62,10 @@ $WORKSPACE/.agents/skills
 
 - 新增、编辑、启停、删除、连接测试和重新连接。
 - 管理 MCP Manager 中的配置，也能显示直接挂载的独立 `@deepseek-ai/dsh-mcp-client` 实例。
-- 独立实例可直接启停和删除。删除前会备份 profile 补丁，再移除对应配置行。
+- 独立实例可直接编辑连接参数、启停和删除。删除前会备份 profile 补丁，再移除对应配置行。
+- 连接类型支持 `stdio` 和 `SSE / Streamable HTTP`。SSE 配置统一由 DSH 的 Streamable HTTP 传输承载。
+- 编辑支持表单和 JSON 两种方式。JSON 接受 `mcpServers` 包装对象或单个服务器配置。
+- JSON 中的 `type: "sse"` 或 `transport: "sse"` 会映射为 DSH 的 `streamable-http`。
 - 从 Claude Code、Codex、Gemini CLI、OpenCode 和 Cursor 导入用户级 MCP 配置。
 - 导入前显示预览和来源。默认不勾选，默认导入为停用。
 - 预览后来源变化会拒绝导入，避免执行未经确认的命令。
@@ -84,12 +87,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.3.2.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.0.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.3.2"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.0"
 ```
 
 ## 使用

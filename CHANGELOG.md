@@ -1,5 +1,16 @@
 # 更新记录
 
+## 1.4.0
+
+MCP 可编辑，并支持 SSE 与 JSON。
+
+- 独立 `@deepseek-ai/dsh-mcp-client` 实例可以直接编辑连接参数。
+- 编辑弹窗新增“表单 / JSON”切换。
+- JSON 支持 `mcpServers` 包装对象和单个服务器配置。
+- 表单和 JSON 都接受 SSE 配置，并映射到 DSH 的 `streamable-http` 传输。
+- 外部 MCP 导入识别 `sse` 类型。
+- MCP 列表中的独立实例显示编辑按钮。
+
 ## 1.3.2
 
 新建项目级技能时选择工作区。
