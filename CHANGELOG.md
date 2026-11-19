@@ -1,5 +1,19 @@
 # 更新记录
 
+## 1.5.0
+
+新增 npm 自动更新机制。
+
+- 启动后延迟检查，并每 6 小时检查一次 npm registry。
+- 仅对 npm registry 安装启用自动更新。
+- 本地目录链接和 Git 固定提交安装不会自我替换。
+- 只选择兼容当前 DSH 的稳定版本，跳过预发布、弃用和不包含 bundle 的版本。
+- 通过 DSH `pluginManager.updateBundle` 安装，支持 HMR 热更新；无 HMR 时提示重启。
+- 顶部增加当前版本、自动更新开关、检查更新和更新状态。
+- 自动更新偏好保存在 `~/.dsh/capability-switch/update-preferences.json`。
+- 新增 `/update/check`、`/update/apply` 和 `/update/config` Host 路由。
+- 补充自动更新测试与 README 说明。
+
 ## 1.4.9
 
 收尾修复审查问题。

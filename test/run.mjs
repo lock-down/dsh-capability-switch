@@ -15,7 +15,7 @@ function isLosslessJson(value) {
 }
 
 const root = resolve(new URL('..', import.meta.url).pathname)
-for (const file of ['lib/client.js', 'lib/index.js', 'lib/mcp.js', 'lib/skills.js']) {
+for (const file of ['lib/client.js', 'lib/index.js', 'lib/mcp.js', 'lib/skills.js', 'lib/update.js']) {
   const checked = spawnSync(process.execPath, ['--check', join(root, file)], { encoding: 'utf8' })
   assert.equal(checked.status, 0, file + ' syntax error: ' + checked.stderr)
 }
@@ -26,6 +26,7 @@ process.env.DSH_AGENTS_HOME = join(temp, 'agents')
 
 try {
   const skills = await import(pathToFileURL(join(root, 'lib/skills.js')))
+  const updateModule = await import(pathToFileURL(join(root, 'lib/update.js')))
   const created = await skills.createSkill({ name: 'demo-skill', description: '测试技能', body: '# Demo' })
   assert.ok(created.path.endsWith('SKILL.md'))
   assert.equal((await skills.listSkills()).length, 1)
@@ -344,6 +345,39 @@ try {
   assert.equal(directRemoval.removed, false)
   assert.equal(config.servers['codex-app'].enabled, false)
 
+  const updateCalls = []
+  const registryManager = {
+    listBundles: async () => [{ name: 'dsh-capability-switch', version: '1.0.0', source: 'dsh-capability-switch@1.0.0', update: 'registry' }],
+    listVersions: async () => ({ status: 'listed', versions: [{ version: '9.9.9', bundle: true, prerelease: false }] }),
+    updateBundle: async (name, version) => { updateCalls.push([name, version]); return { result: { application: 'applied' } } },
+  }
+  const updater = updateModule.createUpdateManager({ get: () => registryManager })
+  await updater.setAutoUpdate(false)
+  const checkedUpdate = await updater.check()
+  assert.equal(checkedUpdate.state, 'available')
+  assert.equal(checkedUpdate.latest, '9.9.9')
+  assert.equal(updateCalls.length, 0)
+  const appliedUpdate = await updater.apply('9.9.9')
+  assert.equal(appliedUpdate.state, 'updated')
+  assert.deepEqual(updateCalls, [['dsh-capability-switch', '9.9.9']])
+  const autoCalls = []
+  const autoUpdater = updateModule.createUpdateManager({ get: () => ({
+    ...registryManager,
+    updateBundle: async (name, version) => { autoCalls.push([name, version]); return { result: { application: 'applied' } } },
+  }) })
+  await autoUpdater.setAutoUpdate(true)
+  const autoUpdate = await autoUpdater.check({ auto: true })
+  assert.equal(autoUpdate.state, 'updated')
+  assert.deepEqual(autoCalls, [['dsh-capability-switch', '9.9.9']])
+  const localUpdater = updateModule.createUpdateManager({ get: () => ({
+    ...registryManager,
+    listBundles: async () => [{ name: 'dsh-capability-switch', version: '1.0.0', source: 'link:/tmp/dsh-capability-switch' }],
+  }) })
+  await localUpdater.setAutoUpdate(true)
+  const localUpdate = await localUpdater.check({ auto: true })
+  assert.equal(localUpdate.state, 'unsupported')
+  assert.equal(localUpdate.supported, false)
+
   const host = await import(pathToFileURL(join(root, 'lib/index.js')))
   assert.deepEqual(host.inject, ['tools', 'skills'])
   assert.deepEqual(host.normalizePreferences({ defaultTab: 'mcp', sidebarLabel: ' 工具 ' }), { sidebarVisible: true, sidebarLabel: '技能与MCP', defaultTab: 'mcp', showDescriptions: true, compactRows: true })
@@ -377,12 +411,18 @@ try {
       return workspace
     },
   }
+  const hostUpdateManager = {
+    listBundles: async () => [{ name: 'dsh-capability-switch', version: '1.0.0', source: 'dsh-capability-switch@1.0.0', update: 'registry' }],
+    listVersions: async () => ({ status: 'listed', versions: [{ version: '9.9.9', bundle: true, prerelease: false }] }),
+    updateBundle: async () => ({ result: { application: 'applied' } }),
+  }
   const hostCtx = {
     fiber: { entry: { id: 'caps' } },
     tools: { register: value => { agentTool = value; return () => {} } },
     effect: fn => { fn(); return () => {} },
     get: key => {
       if (key === 'mcpManager') return manager
+      if (key === 'pluginManager') return hostUpdateManager
       if (key === 'webServer') return webServer
       if (key === 'configEditor') return configEditor
       if (key === 'connection') return connectionAvailable ? connection : undefined
@@ -393,7 +433,7 @@ try {
     },
   }
   host.apply(hostCtx, {})
-  assert.equal(routes.size, 16)
+  assert.equal(routes.size, 19)
   assert.equal(agentTool.output.schema.type, 'object')
   const listed = await agentTool.execute({ action: 'list' })
   assert.equal(listed.ok, true)
@@ -455,6 +495,13 @@ try {
   const stateResponse = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateResponse.status, 200)
   assert.ok(Array.isArray(stateResponse.data.skills))
+  assert.equal(typeof stateResponse.data.update.current, 'string')
+  const updateCheck = await invoke('/__dsh-capability-switch/update/check', 'POST', {})
+  assert.equal(updateCheck.status, 200)
+  assert.equal(updateCheck.data.state, 'available')
+  const updateApply = await invoke('/__dsh-capability-switch/update/apply', 'POST', { version: '9.9.9' })
+  assert.equal(updateApply.status, 200)
+  assert.equal(updateApply.data.state, 'updated')
   const workspaceResponse = await invoke('/__dsh-capability-switch/state?cwd=' + encodeURIComponent(temp), 'GET')
   assert.equal(workspaceResponse.data.workspace, temp)
   assert.equal(workspaceResponse.data.userSkillsRoot, join(temp, 'skills'))

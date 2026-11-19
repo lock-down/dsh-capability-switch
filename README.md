@@ -108,7 +108,13 @@ $WORKSPACE/.agents/skills
 
 当前版本针对 DSH `0.2.2-rc.5` 开发和验证。DSH 的其他版本可能调整服务接口。
 
-从源码安装：
+从 npm 安装，支持自动更新：
+
+```bash
+dsh plugin --profile desktop add dsh-capability-switch
+```
+
+从源码安装（本地目录安装不会自动更新）：
 
 ```bash
 git clone https://github.com/lock-down/dsh-capability-switch.git
@@ -118,13 +124,31 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.9.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.0.tgz`，解压后按上面的目录方式安装。
 
-从 GitHub 固定版本安装：
+从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.9"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.0"
 ```
+
+## 自动更新
+
+通过 npm 安装的插件会自动检查并更新到兼容的稳定版本：
+
+- 启动约 45 秒后检查一次，之后每 6 小时检查一次。
+- 只更新 npm registry 安装的 `dsh-capability-switch`。
+- 本地目录链接和 Git 固定提交安装不会自我替换。
+- 只选择 `bundle: true`、未弃用、非预发布且兼容当前 DSH 的版本。
+- 更新通过 DSH 的 `pluginManager.updateBundle` 完成。
+- 有 HMR 时安装后自动加载；没有 HMR 时提示重启 DSH。
+- 自动更新不会修改 Skills、MCP、工作区或同步状态。
+
+顶部显示当前版本、自动更新开关和“检查更新”。关闭自动更新后仍可手动检查和安装。设置保存在 `~/.dsh/capability-switch/update-preferences.json`。
+
+`1.5.0` 是首个带自动更新机制的版本；`1.4.9` 及更早版本需要手动安装一次 `1.5.0`，之后的新版本才会自动更新。
+
+更新检查会访问 npm registry 读取版本列表；不会上传本机 Skills 或 MCP 配置。
 
 ## 使用
 
@@ -171,11 +195,13 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 - `~/.dsh/capability-switch/backups`
 - `~/.dsh/capability-switch/trash`
 - `~/.dsh/capability-switch/skill-sync-backups`
+- `~/.dsh/capability-switch/skill-sync-state.json`
+- `~/.dsh/capability-switch/update-preferences.json`
 - 当前 DSH profile 的 `cordis.patch.yml`
 
 删除独立 MCP 前，原 profile 补丁会备份到 `~/.dsh/capability-switch/backups`。
 
-插件不上传技能、MCP 配置或凭据。MCP 连接由 DSH 的 MCP Manager 和对应 MCP 服务处理。
+插件不上传技能、MCP 配置或凭据。自动更新只访问 npm registry 读取版本列表并安装插件包；MCP 连接由 DSH 的 MCP Manager 和对应 MCP 服务处理。
 
 ## 开发
 
@@ -198,6 +224,7 @@ npm pack
 - 独立 MCP 编辑、只读权限、启停、补丁删除和备份
 - SSE 映射、表单与 JSON 编辑
 - Host 路由、代理工具和无损 JSON 输出
+- npm registry 更新检查、稳定版本筛选、本地安装拒绝自动更新
 
 主要文件：
 
@@ -205,6 +232,7 @@ npm pack
 - `lib/client.js`：侧边栏界面
 - `lib/skills.js`：Skills 管理和同步
 - `lib/mcp.js`：MCP 管理和独立实例操作
+- `lib/update.js`：npm 自动更新检查、下载和 DSH 插件管理器更新
 - `lib/imports.js`：其他应用的 MCP 配置读取
 
 ## 许可证
