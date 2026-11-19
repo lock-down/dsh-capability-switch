@@ -1,6 +1,6 @@
 {
   "name": "dsh-capability-switch",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "A DSH sidebar plugin for managing Skills and MCP servers.",
   "license": "MIT",
   "author": "lock-down",

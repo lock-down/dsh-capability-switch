@@ -378,6 +378,7 @@ try {
   assert.ok(Array.isArray(stateResponse.data.skills))
   const workspaceResponse = await invoke('/__dsh-capability-switch/state?cwd=' + encodeURIComponent(temp), 'GET')
   assert.equal(workspaceResponse.data.workspace, temp)
+  assert.equal(workspaceResponse.data.userSkillsRoot, join(temp, 'skills'))
   const refreshBeforeRoute = hostRefreshCount
   const createResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-refresh', description: 'route refresh', body: '# Route refresh' })
   assert.equal(createResponse.status, 200)
