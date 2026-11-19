@@ -15,11 +15,12 @@
 - 其他已注册工作区的 `.agents` 项目技能也可编辑、启停和删除，标题旁提示会说明修改影响范围。
 - 当前工作区与用户级技能按名称去重；不同工作区的同名技能分别展示，并带工作区徽标。
 - 删除本地新建的真实技能时移入回收目录。
-- 从 `~/.agents/skills` 同步到 `~/.dsh/skills` 时创建软链接，不复制文件。
-- 同步前逐项预览，可选择要处理的技能。
-- 已有正确软链接会跳过；不同链接或真实目录会先备份，再替换为软链接。
-- 删除同步技能时只移除 DSH 软链接，Agent 源文件保留。
-- 编辑同步技能会通过软链接写入 Agent 源文件，修改前保留备份。
+- 从 `~/.agents/skills` 同步到 `~/.dsh/skills`，默认使用软链接，也可选择复制。
+- 软链接模式不复制文件，Agent 内容变化会直接反映到 DSH。
+- 复制模式生成独立副本，编辑和删除不会修改 Agent 源文件，更新后会重新复制。
+- 同步前逐项预览，可选择同步方式和要处理的技能。
+- 已有正确目标会跳过；不同链接、真实目录或旧副本会先备份，再替换。
+- 删除软链接同步技能时只移除 DSH 链接；删除复制同步技能时只移除 DSH 副本。
 
 ### 技能接管
 
@@ -90,12 +91,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.6.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.7.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.6"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.7"
 ```
 
 ## 使用
@@ -104,12 +105,17 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 
 1. 打开 `技能与MCP` 的 Skills 标签。
 2. 点击“从 Agent 目录同步”。
-3. 检查来源、目标、备份目录和变更列表。
-4. 勾选要同步的技能，然后点击“确认同步”。
+3. 选择同步方式：
+   - 只用软链接：Windows 需要开启开发者模式。
+   - 只用复制：占用更多空间，更新后会重新复制。
+4. 检查来源、目标、备份目录和变更列表。
+5. 勾选要同步的技能，然后点击“确认同步”。
 
-构建出的 DSH 条目是指向 Agent 来源的软链接。Agent 中的内容变化会直接反映到 DSH，不需要再次同步。
+软链接模式会创建指向 Agent 来源的 DSH 软链接。Agent 中的内容变化会直接反映到 DSH，不需要再次同步。编辑同步技能会通过软链接写回 Agent 源文件。
 
-同步前如果 DSH 中已有真实目录，插件会把它移到 `~/.dsh/capability-switch/skill-sync-backups`，再创建软链接。
+复制模式会把技能目录或文件复制到 DSH，生成独立副本。编辑或删除只影响 DSH 副本，不会修改 Agent 源文件；Agent 内容变化后再次同步会重新复制。复制模式占用更多磁盘空间。
+
+同步前如果 DSH 中已有真实目录或不同内容，插件会把它移到 `~/.dsh/capability-switch/skill-sync-backups`，再替换为目标模式。
 
 ### 导入 MCP
 
@@ -146,6 +152,7 @@ npm pack
 回归测试覆盖：
 
 - Skills 新建、编辑、启停、删除和软链接同步
+- 复制同步、内容一致跳过、更新重复制和副本删除
 - 同名技能去重与技能来源接管
 - 项目级、用户级、内置和全局 Agent 来源
 - 所有已注册工作区的项目技能扫描与跨工作区编辑
