@@ -68,7 +68,7 @@ $WORKSPACE/.agents/skills
 - 管理 MCP Manager 中的配置，也能显示直接挂载的独立 `@deepseek-ai/dsh-mcp-client` 实例。
 - 独立实例可直接编辑连接参数、启停和删除。删除前会备份 profile 补丁，再移除对应配置行。
 - 连接类型支持 `stdio` 和 `SSE / Streamable HTTP`。SSE 配置统一由 DSH 的 Streamable HTTP 传输承载。
-- 编辑支持表单和 JSON 两种方式。JSON 接受 `mcpServers` 包装对象或单个服务器配置，每次保存一个服务器。
+- 编辑支持表单和 JSON 两种方式。JSON 接受 `mcpServers` 包装对象或单个服务器配置；新建时可一次保存多个服务器，编辑时只能保存一个。
 - JSON 中的 `type: "sse"` 或 `transport: "sse"` 会映射为 DSH 的 `streamable-http`。
 - 从 Claude Code、Codex、Gemini CLI、OpenCode 和 Cursor 导入用户级 MCP 配置。
 - 导入前显示预览和来源。默认不勾选，默认导入为停用。
@@ -91,12 +91,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.8.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.9.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.8"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.9"
 ```
 
 ## 使用
@@ -113,7 +113,16 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 
 软链接模式会创建指向 Agent 来源的 DSH 软链接。Agent 中的内容变化会直接反映到 DSH，不需要再次同步。编辑同步技能会通过软链接写回 Agent 源文件。
 
-复制模式会把技能目录或文件复制到 DSH，生成独立副本。编辑或删除只影响 DSH 副本，不会修改 Agent 源文件；Agent 内容变化后再次同步会重新复制。复制模式占用更多磁盘空间。
+复制模式会把技能目录或文件复制到 DSH，生成独立副本。编辑或删除只影响 DSH 副本，不会修改 Agent 源文件；复制模式占用更多磁盘空间。
+
+复制同步会记录源和副本的基线指纹。再次同步时：
+
+- 只有源变化：标记“更新副本”。
+- 只有 DSH 副本变化：标记“本地已修改”，默认不勾选。
+- 源和副本都变化：标记“来源与副本均已变化”，默认不勾选。
+- 内容和基线一致：跳过。
+
+覆盖本地副本前会先备份。
 
 同步前如果 DSH 中已有真实目录或不同内容，插件会把它移到 `~/.dsh/capability-switch/skill-sync-backups`，再替换为目标模式。
 
