@@ -13,7 +13,7 @@
 - 项目级技能写入所选工作区的 `.agents/skills`。
 - 主列表显示用户级、当前工作区和所有已注册工作区的项目技能；全局 Agent 源仅出现在同步预览中。
 - 其他工作区的项目技能只读展示，标题旁的提示会说明如何切换工作区后管理。
-- 列表按技能名去重，同名时优先显示 DSH 目录中的条目。
+- 当前工作区与用户级技能按名称去重；不同工作区的同名技能分别展示，并带工作区徽标。
 - 删除本地新建的真实技能时移入回收目录。
 - 从 `~/.agents/skills` 同步到 `~/.dsh/skills` 时创建软链接，不复制文件。
 - 同步前逐项预览，可选择要处理的技能。
@@ -67,7 +67,7 @@ $WORKSPACE/.agents/skills
 - 管理 MCP Manager 中的配置，也能显示直接挂载的独立 `@deepseek-ai/dsh-mcp-client` 实例。
 - 独立实例可直接编辑连接参数、启停和删除。删除前会备份 profile 补丁，再移除对应配置行。
 - 连接类型支持 `stdio` 和 `SSE / Streamable HTTP`。SSE 配置统一由 DSH 的 Streamable HTTP 传输承载。
-- 编辑支持表单和 JSON 两种方式。JSON 接受 `mcpServers` 包装对象或单个服务器配置。
+- 编辑支持表单和 JSON 两种方式。JSON 接受 `mcpServers` 包装对象或单个服务器配置，每次保存一个服务器。
 - JSON 中的 `type: "sse"` 或 `transport: "sse"` 会映射为 DSH 的 `streamable-http`。
 - 从 Claude Code、Codex、Gemini CLI、OpenCode 和 Cursor 导入用户级 MCP 配置。
 - 导入前显示预览和来源。默认不勾选，默认导入为停用。
@@ -90,12 +90,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.4.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.4.5.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.4"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.4.5"
 ```
 
 ## 使用
@@ -148,8 +148,11 @@ npm pack
 - Skills 新建、编辑、启停、删除和软链接同步
 - 同名技能去重与技能来源接管
 - 项目级、用户级、内置和全局 Agent 来源
+- 所有已注册工作区的项目技能扫描与只读标记
+- 当前会话工作区鉴权，拒绝伪造的项目技能 cwd
 - MCP 导入预览、冲突处理和默认停用
-- 独立 MCP 启停、补丁删除和备份
+- 独立 MCP 编辑、只读权限、启停、补丁删除和备份
+- SSE 映射、表单与 JSON 编辑
 - Host 路由、代理工具和无损 JSON 输出
 
 主要文件：

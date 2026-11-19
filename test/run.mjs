@@ -233,6 +233,19 @@ try {
   await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'pen2', args: ['--edited'], env: {}, enabled: true })
   assert.equal(standaloneEntry.options.config.command, 'pen2')
   assert.deepEqual(standaloneEntry.options.config.args, ['--edited'])
+  config.servers.pencil = { name: 'pencil', transport: 'stdio', command: 'manager-pen', args: [], env: {}, cwd: '', enabled: true }
+  await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'manager-pen-2', args: [], env: {}, enabled: true })
+  assert.equal(config.servers.pencil.command, 'manager-pen-2')
+  assert.equal(standaloneEntry.options.config.command, 'pen2')
+  delete config.servers.pencil
+  const originalListPlugins = pluginManager.listPlugins
+  pluginManager.listPlugins = async () => [{ entryId: 'include:pencil', patchId: 'pencil', moduleName: '@deepseek-ai/dsh-mcp-client', enabled: true, readOnlyReason: 'management-required' }]
+  const readOnlyStandalone = (await mcp.listMcp(ctx)).find(row => row.name === 'pencil')
+  assert.equal(readOnlyStandalone.writable, false)
+  assert.equal(readOnlyStandalone.canDelete, false)
+  await assert.rejects(() => mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'blocked', enabled: true }), /不可管理/)
+  await assert.rejects(() => mcp.deleteMcp(ctx, 'pencil', true), /不可管理/)
+  pluginManager.listPlugins = originalListPlugins
   await mcp.toggleMcp(ctx, 'pencil', false)
   assert.equal(standaloneEnabled, false)
   await mcp.toggleMcp(ctx, 'pencil', true)
@@ -337,6 +350,8 @@ try {
       if (key === 'connection') return connectionAvailable ? connection : undefined
       if (key === 'skills') return hostRefreshSkills
       if (key === 'workspaceRegistry') return workspaceRegistry
+      if (key === 'agents') return { get: id => id === 'test-session' ? { id } : undefined, currentInitiator: () => ({ id: 'test-session' }) }
+      if (key === 'workingDirectory') return { ensure: async () => projectWorkspace }
     },
   }
   host.apply(hostCtx, {})
@@ -353,6 +368,7 @@ try {
   await fs.writeFile(join(otherSkill, 'SKILL.md'), '---\nname: other-skill\ndescription: Other workspace skill\n---\n\n# Other\n')
   const stateWithWorkspaces = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateWithWorkspaces.data.workspaces.length, 1)
+  assert.deepEqual(stateWithWorkspaces.data.skillWarnings, [])
   const otherRow = stateWithWorkspaces.data.skills.find(skill => skill.name === 'other-skill')
   assert.equal(otherRow.workspaceTitle, 'new-workspace')
   assert.equal(otherRow.readOnlyReason, 'other-workspace')
@@ -363,14 +379,18 @@ try {
   const refreshBeforeTool = hostRefreshCount
   await agentTool.execute({ action: 'skill_create', name: 'tool-refresh', description: 'tool refresh', body: '# Tool refresh' })
   assert.ok(hostRefreshCount > refreshBeforeTool)
-  async function invoke(path, method, body) {
+  const toolProject = await agentTool.execute({ action: 'skill_create', scope: 'project', name: 'tool-project', description: 'tool project', body: '# Tool project' })
+  assert.ok(toolProject.path.startsWith(join(projectWorkspace, '.agents', 'skills')))
+  await skills.deleteSkill(toolProject.path, true, projectWorkspace)
+  async function invoke(path, method, body, headers = {}) {
     const req = new EventEmitter()
-    Object.assign(req, { method, url: path, headers: {} })
+    Object.assign(req, { method, url: path, headers })
     let complete
     const done = new Promise(resolve => { complete = resolve })
     const res = { statusCode: 200, setHeader() {}, end(text) { complete({ status: this.statusCode, data: JSON.parse(text) }) } }
     const routePath = new URL(path, 'http://127.0.0.1').pathname
     const pending = routes.get(routePath).handler(req, res)
+    await new Promise(resolve => setImmediate(resolve))
     if (body !== undefined) req.emit('data', Buffer.from(JSON.stringify(body)))
     req.emit('end')
     await pending
@@ -394,7 +414,9 @@ try {
   const refreshBeforeRoute = hostRefreshCount
   const createResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-refresh', description: 'route refresh', body: '# Route refresh' })
   assert.equal(createResponse.status, 200)
-  const projectCreateResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-project', description: 'route project', body: '# Route project', scope: 'project', cwd: projectWorkspace })
+  const unauthorizedProject = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-unauthorized', description: 'route unauthorized', body: '# Route unauthorized', scope: 'project', cwd: projectWorkspace })
+  assert.equal(unauthorizedProject.status, 400)
+  const projectCreateResponse = await invoke('/__dsh-capability-switch/skill/create', 'POST', { name: 'route-project', description: 'route project', body: '# Route project', scope: 'project', cwd: join(temp, 'untrusted-workspace') }, { 'x-dsh-session-id': 'test-session' })
   assert.equal(projectCreateResponse.status, 200)
   assert.ok(projectCreateResponse.data.path.startsWith(join(projectWorkspace, '.agents', 'skills')))
   await skills.deleteSkill(projectCreateResponse.data.path, true, projectWorkspace)
