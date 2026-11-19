@@ -371,8 +371,15 @@ try {
   assert.deepEqual(stateWithWorkspaces.data.skillWarnings, [])
   const otherRow = stateWithWorkspaces.data.skills.find(skill => skill.name === 'other-skill')
   assert.equal(otherRow.workspaceTitle, 'new-workspace')
-  assert.equal(otherRow.readOnlyReason, 'other-workspace')
-  assert.equal(otherRow.writable, false)
+  assert.equal(otherRow.crossWorkspace, true)
+  assert.equal(otherRow.writable, true)
+  const otherUpdate = await invoke('/__dsh-capability-switch/skill/update', 'POST', {
+    path: join(otherSkill, 'SKILL.md'),
+    text: '---\nname: other-skill\ndescription: Updated other workspace skill\n---\n\n# Updated other\n',
+    cwd: join(temp, 'new-workspace'),
+  }, { 'x-dsh-session-id': 'test-session' })
+  assert.equal(otherUpdate.status, 200)
+  assert.match(await fs.readFile(join(otherSkill, 'SKILL.md'), 'utf8'), /Updated other workspace skill/)
   assert.deepEqual(agentTool.output.render({ action: 'list' }, listed), [
     { type: 'text', text: JSON.stringify(listed, null, 2) },
   ])
