@@ -348,8 +348,15 @@ try {
   const createdWorkspace = await invoke('/__dsh-capability-switch/workspace/create', 'POST', { name: 'new-workspace', parent: temp })
   assert.equal(createdWorkspace.status, 200)
   assert.equal(createdWorkspace.data.workspace.path, join(temp, 'new-workspace'))
+  const otherSkill = join(temp, 'new-workspace', '.agents', 'skills', 'other-skill')
+  await fs.mkdir(otherSkill, { recursive: true })
+  await fs.writeFile(join(otherSkill, 'SKILL.md'), '---\nname: other-skill\ndescription: Other workspace skill\n---\n\n# Other\n')
   const stateWithWorkspaces = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateWithWorkspaces.data.workspaces.length, 1)
+  const otherRow = stateWithWorkspaces.data.skills.find(skill => skill.name === 'other-skill')
+  assert.equal(otherRow.workspaceTitle, 'new-workspace')
+  assert.equal(otherRow.readOnlyReason, 'other-workspace')
+  assert.equal(otherRow.writable, false)
   assert.deepEqual(agentTool.output.render({ action: 'list' }, listed), [
     { type: 'text', text: JSON.stringify(listed, null, 2) },
   ])
