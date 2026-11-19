@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Skills 与 MCP 能力管理",
-    "description": "参考 CC Switch 的统一管理方式，在左侧边栏“能力管理”和“设置 → 能力管理”中搜索、新建、编辑、启停或删除 Skills 与 MCP，并测试 MCP 连接。Skills 管理用户级目录，项目级条目只读；MCP 修改当前 DSH profile。点击“显示设置”可自定义侧边栏入口、默认标签、描述和行距，偏好保存在 DSH 插件配置中。"
+    "description": "在 DSH 侧边栏统一管理 Skills 与 MCP。技能侧在 Host 层接管扫描结果：全局 ~/.agents/skills 不进入模型技能目录，只有明确选择的技能才会同步到 DSH；支持用户级和项目级技能的搜索、新建、编辑、启停和删除，并可按软链接或复制方式同步。MCP 支持 Manager 与独立实例的表单/JSON 编辑、启停、连接测试、重新连接和从其他应用导入。自动更新、侧边栏入口和显示偏好保存在当前 DSH profile。"
   }
 }

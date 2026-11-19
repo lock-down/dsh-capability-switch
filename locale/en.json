@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Skills & MCP capabilities",
-    "description": "Manage Skills and MCP servers with a CC Switch-inspired unified list from the Capabilities sidebar page or Settings → Capabilities. Search, create, edit, toggle, delete, and test MCP connections. Skills writes are limited to user-level roots and project entries are read-only; MCP changes affect the active DSH profile. Display settings customize the sidebar entry, default tab, descriptions, and row density and persist in the DSH plugin configuration."
+    "description": "Manage Skills and MCP servers from the DSH sidebar. On the Host side, skill discovery is taken over so the global ~/.agents/skills directory never enters the model catalog; only skills you explicitly select are synchronized. Search, create, edit, toggle, and delete user-level and project-level skills, and sync them as symlinks or independent copies. MCP supports editing Manager and standalone entries in form or JSON, toggling, connection tests, reconnect, and imports from other apps. Auto-update, sidebar entry, and display preferences persist in the active DSH profile."
   }
 }

@@ -124,12 +124,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.2.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.3.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.2"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.3"
 ```
 
 ## 自动更新
