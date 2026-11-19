@@ -23,6 +23,8 @@ const clientSource = await fs.readFile(join(root, 'lib/client.js'), 'utf8')
 assert.doesNotMatch(clientSource, /perform\('update-/)
 assert.match(clientSource, /setData\(current => \(\{ \.\.\.current, update: result \}\)\)/)
 assert.match(clientSource, /const \[updateBusy, setUpdateBusy\] = useState\(''\)/)
+assert.match(clientSource, /\.dsh-caps-primary\{background:var\(--dsw-alias-button-primary-fill\);color:var\(--dsw-alias-label-primary-foreground\);/)
+assert.doesNotMatch(clientSource, /\.dsh-caps-primary[^{]*\{[^}]*--dsw-alias-label-on-color/)
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
