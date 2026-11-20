@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { EventEmitter } from 'node:events'
 import { spawnSync } from 'node:child_process'
 
@@ -14,7 +14,7 @@ function isLosslessJson(value) {
   return false
 }
 
-const root = resolve(new URL('..', import.meta.url).pathname)
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)))
 for (const file of ['lib/client.js', 'lib/index.js', 'lib/mcp.js', 'lib/skills.js', 'lib/update.js']) {
   const checked = spawnSync(process.execPath, ['--check', join(root, file)], { encoding: 'utf8' })
   assert.equal(checked.status, 0, file + ' syntax error: ' + checked.stderr)
@@ -25,6 +25,7 @@ assert.match(clientSource, /setData\(current => \(\{ \.\.\.current, update: resu
 assert.match(clientSource, /const \[updateBusy, setUpdateBusy\] = useState\(''\)/)
 assert.match(clientSource, /\.dsh-caps-primary\{background:var\(--dsw-alias-button-primary-fill\);color:var\(--dsw-alias-label-primary-foreground\);/)
 assert.doesNotMatch(clientSource, /\.dsh-caps-primary[^{]*\{[^}]*--dsw-alias-label-on-color/)
+assert.match(clientSource, /result\.error \|\| result\.message/)
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
@@ -149,6 +150,19 @@ try {
   assert.equal(await fs.readFile(join(deleteSource, 'SKILL.md'), 'utf8'), '---\nname: link-delete\ndescription: test\n---\n\n# Keep me\n')
   await assert.rejects(() => fs.access(deleteLink))
 
+  const outsideSkill = join(temp, 'outside-skill')
+  await fs.mkdir(outsideSkill, { recursive: true })
+  await fs.writeFile(join(outsideSkill, 'SKILL.md'), '---\nname: outside-skill\ndescription: outside\n---\n\n# outside\n')
+  const aliasLink = join(temp, 'agents', 'skills', 'alias-skill')
+  const chainLink = join(temp, 'skills', 'chain-skill')
+  await fs.symlink(outsideSkill, aliasLink, process.platform === 'win32' ? 'junction' : 'dir')
+  await fs.symlink(aliasLink, chainLink, process.platform === 'win32' ? 'junction' : 'dir')
+  await assert.rejects(() => skills.updateSkill(join(chainLink, 'SKILL.md'), '---\nname: outside-skill\ndescription: changed\n---\n\n# changed\n'), /不允许/)
+  assert.match(await fs.readFile(join(outsideSkill, 'SKILL.md'), 'utf8'), /outside/)
+  await fs.rm(chainLink)
+  await fs.rm(aliasLink)
+  await fs.rm(outsideSkill, { recursive: true })
+
   const projectWorkspace = join(temp, 'project-workspace')
   const projectSkill = join(projectWorkspace, '.agents', 'skills', 'project-demo')
   await fs.mkdir(projectSkill, { recursive: true })
@@ -165,6 +179,40 @@ try {
   const deletedProject = await skills.deleteSkill(createdProject.path, true, projectWorkspace)
   assert.equal(deletedProject.unlinked, false)
   await assert.rejects(() => fs.access(createdProject.path))
+
+  const crossVolumeSkill = await skills.createSkill({ name: 'cross-volume', description: 'cross volume', body: '# cross', scope: 'project', cwd: projectWorkspace })
+  const originalRename = fs.rename
+  fs.rename = async () => { const error = new Error('cross-device link not permitted'); error.code = 'EXDEV'; throw error }
+  try {
+    const crossVolumeDeleted = await skills.deleteSkill(crossVolumeSkill.path, true, projectWorkspace)
+    assert.equal(crossVolumeDeleted.unlinked, false)
+    await fs.access(crossVolumeDeleted.trash)
+    await assert.rejects(() => fs.access(crossVolumeSkill.path))
+  } finally {
+    fs.rename = originalRename
+  }
+  const crossVolumeSource = join(temp, 'cross-volume-source')
+  await fs.mkdir(crossVolumeSource, { recursive: true })
+  await fs.writeFile(join(crossVolumeSource, 'SKILL.md'), '# source\n')
+  const crossVolumeFile = join(projectWorkspace, '.agents', 'skills', 'cross-volume-file.md')
+  await fs.writeFile(crossVolumeFile, '# file source\n')
+  const crossVolumeLink = join(projectWorkspace, '.agents', 'skills', 'cross-volume-link')
+  await fs.symlink(crossVolumeSource, crossVolumeLink, process.platform === 'win32' ? 'junction' : 'dir')
+  const originalRenameAgain = fs.rename
+  fs.rename = async () => { const error = new Error('cross-device link not permitted'); error.code = 'EXDEV'; throw error }
+  try {
+    const linkDeleted = await skills.deleteSkill(join(crossVolumeLink, 'SKILL.md'), true, projectWorkspace)
+    assert.equal(linkDeleted.unlinked, true)
+    assert.equal((await fs.lstat(linkDeleted.trash)).isSymbolicLink(), true)
+    await fs.access(join(crossVolumeSource, 'SKILL.md'))
+    await assert.rejects(() => fs.access(crossVolumeLink))
+    const fileDeleted = await skills.deleteSkill(crossVolumeFile, true, projectWorkspace)
+    assert.equal(fileDeleted.unlinked, false)
+    assert.equal(await fs.readFile(fileDeleted.trash, 'utf8'), '# file source\n')
+    await assert.rejects(() => fs.access(crossVolumeFile))
+  } finally {
+    fs.rename = originalRenameAgain
+  }
 
   for (const name of ['partial-a', 'partial-b']) {
     await fs.mkdir(join(temp, 'agents', 'skills', name), { recursive: true })
@@ -227,12 +275,14 @@ try {
 
   const mcp = await import(pathToFileURL(join(root, 'lib/mcp.js')))
   let config = { servers: {} }
+  let probeCalls = 0
+  let restartCalls = 0
   const manager = {
     config: { servers: { get: () => config.servers } },
     ctx: { fiber: { entry: { id: 'mcp' } } },
     list: () => Object.entries(config.servers).map(([name, entry]) => ({ name, status: { state: entry.enabled ? 'connected' : 'disabled' } })),
-    probe: async name => ({ ok: true, toolNames: [name + '.tool'] }),
-    restart: async () => {},
+    probe: async name => { probeCalls += 1; return { ok: true, toolNames: [name + '.tool'] } },
+    restart: async () => { restartCalls += 1 },
   }
   const standaloneEntry = { options: { id: 'pencil', name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'pencil', transport: 'stdio', command: 'pen', args: ['--app', 'desktop'] } } }
   const profilePatch = join(temp, 'cordis.patch.yml')
@@ -254,9 +304,11 @@ try {
     '',
   ].join('\n'))
   let standaloneEnabled = true
+  let setPluginEnableCalls = 0
   const pluginManager = {
     listPlugins: async () => [{ entryId: 'include:pencil', patchId: 'pencil', moduleName: '@deepseek-ai/dsh-mcp-client', enabled: standaloneEnabled }],
     setPluginEnabled: async (_id, enabled) => {
+      setPluginEnableCalls += 1
       standaloneEnabled = enabled
       return { application: 'applied', enabled, stage: 'enable', target: 'pencil', changed: true }
     },
@@ -270,16 +322,16 @@ try {
     },
   }
   const ctx = { get: key => key === 'mcpManager' ? manager : key === 'configEditor' ? configEditor : key === 'pluginManager' ? pluginManager : undefined }
-  await mcp.saveMcp(ctx, { name: 'local', transport: 'stdio', command: 'npx', args: ['-y', 'demo'], env: {}, enabled: true })
+  await mcp.saveMcp(ctx, { name: 'local', transport: 'stdio', command: 'npx', args: ['-y', 'demo'], env: {}, enabled: true }, mcp.PANEL_APPROVAL)
   assert.equal((await mcp.listMcp(ctx))[0].command, 'npx')
   assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').source, 'standalone')
   assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').writable, true)
   assert.equal((await mcp.listMcp(ctx)).find(row => row.name === 'pencil').canToggle, true)
-  await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'pen2', args: ['--edited'], env: {}, enabled: true })
+  await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'pen2', args: ['--edited'], env: {}, enabled: true }, mcp.PANEL_APPROVAL)
   assert.equal(standaloneEntry.options.config.command, 'pen2')
   assert.deepEqual(standaloneEntry.options.config.args, ['--edited'])
   config.servers.pencil = { name: 'pencil', transport: 'stdio', command: 'manager-pen', args: [], env: {}, cwd: '', enabled: true }
-  await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'manager-pen-2', args: [], env: {}, enabled: true })
+  await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'manager-pen-2', args: [], env: {}, enabled: true }, mcp.PANEL_APPROVAL)
   assert.equal(config.servers.pencil.command, 'manager-pen-2')
   assert.equal(standaloneEntry.options.config.command, 'pen2')
   delete config.servers.pencil
@@ -291,28 +343,110 @@ try {
   await assert.rejects(() => mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'blocked', enabled: true }), /不可管理/)
   await assert.rejects(() => mcp.deleteMcp(ctx, 'pencil', true), /不可管理/)
   pluginManager.listPlugins = originalListPlugins
-  await mcp.toggleMcp(ctx, 'pencil', false)
+  await mcp.toggleMcp(ctx, 'pencil', false, mcp.PANEL_APPROVAL)
   assert.equal(standaloneEnabled, false)
-  await mcp.toggleMcp(ctx, 'pencil', true)
+  await mcp.toggleMcp(ctx, 'pencil', true, mcp.PANEL_APPROVAL)
   assert.equal(standaloneEnabled, true)
-  await mcp.toggleMcp(ctx, 'local', false)
+  await mcp.toggleMcp(ctx, 'local', false, mcp.PANEL_APPROVAL)
   assert.equal(config.servers.local.enabled, false)
-  await mcp.saveMcp(ctx, { name: 'local', originalName: 'local', transport: 'streamable-http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer test' }, enabled: true })
+  await mcp.saveMcp(ctx, { name: 'local', originalName: 'local', transport: 'streamable-http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer test' }, enabled: true }, mcp.PANEL_APPROVAL)
   assert.equal(config.servers.local.command, '')
   assert.equal(config.servers.local.url, 'https://example.com/mcp')
-  await mcp.saveMcp(ctx, { name: 'local', originalName: 'local', transport: 'sse', url: 'https://example.com/sse', headers: {}, enabled: true })
+  await mcp.saveMcp(ctx, { name: 'local', originalName: 'local', transport: 'sse', url: 'https://example.com/sse', headers: {}, enabled: true }, mcp.PANEL_APPROVAL)
   assert.equal(config.servers.local.transport, 'streamable-http')
   assert.equal(config.servers.local.url, 'https://example.com/sse')
-  assert.deepEqual((await mcp.testMcp(ctx, 'local')).toolNames, ['local.tool'])
+  assert.deepEqual((await mcp.testMcp(ctx, 'local', mcp.PANEL_APPROVAL)).toolNames, ['local.tool'])
   await assert.rejects(() => mcp.deleteMcp(ctx, 'local', false), /确认/)
   await mcp.deleteMcp(ctx, 'local', true)
   assert.equal(config.servers.local, undefined)
+
+  const approvalRequests = []
+  const recordApproval = async request => { approvalRequests.push(request) }
+  await mcp.saveMcp(ctx, { name: 'stdio-gated', transport: 'stdio', command: 'npx', args: ['-y', 'gated'], env: {}, enabled: true }, recordApproval)
+  assert.equal(approvalRequests.length, 1)
+  assert.equal(approvalRequests[0].action, 'mcp_save')
+  assert.deepEqual(approvalRequests[0].servers.map(server => server.name), ['stdio-gated'])
+  assert.equal(approvalRequests[0].servers[0].command, 'npx')
+  assert.deepEqual(approvalRequests[0].servers[0].args, ['-y', 'gated'])
+  approvalRequests.length = 0
+  await mcp.saveMcp(ctx, { name: 'http-gated', transport: 'streamable-http', url: 'https://example.com/mcp', headers: {}, enabled: true }, recordApproval)
+  assert.equal(approvalRequests.length, 0)
+  await mcp.saveMcp(ctx, { name: 'disabled-gated', transport: 'stdio', command: 'npx', args: ['off'], env: {}, enabled: false }, recordApproval)
+  assert.equal(approvalRequests.length, 0)
+  assert.equal(config.servers['disabled-gated'].enabled, false)
+  await mcp.toggleMcp(ctx, 'disabled-gated', true, recordApproval)
+  assert.equal(approvalRequests.length, 1)
+  assert.equal(approvalRequests[0].action, 'mcp_toggle')
+  approvalRequests.length = 0
+  await mcp.toggleMcp(ctx, 'disabled-gated', false, recordApproval)
+  assert.equal(approvalRequests.length, 0)
+  await mcp.toggleMcp(ctx, 'pencil', false, recordApproval)
+  assert.equal(approvalRequests.length, 0)
+  await mcp.toggleMcp(ctx, 'pencil', true, recordApproval)
+  assert.equal(approvalRequests.length, 1)
+  assert.equal(approvalRequests[0].servers[0].name, 'pencil')
+  approvalRequests.length = 0
+  const liveStandaloneSave = await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'pen-gated', args: [], env: {}, enabled: true }, recordApproval)
+  assert.equal(approvalRequests.length, 1)
+  assert.equal(approvalRequests[0].action, 'mcp_save')
+  assert.equal(liveStandaloneSave.enabled, true)
+  await mcp.toggleMcp(ctx, 'pencil', false, mcp.PANEL_APPROVAL)
+  approvalRequests.length = 0
+  const disabledStandaloneSave = await mcp.saveMcp(ctx, { name: 'pencil', originalName: 'pencil', transport: 'stdio', command: 'pen-off', args: [], env: {}, enabled: true }, recordApproval)
+  assert.equal(approvalRequests.length, 0)
+  assert.equal(disabledStandaloneSave.enabled, false)
+  await mcp.toggleMcp(ctx, 'pencil', true, mcp.PANEL_APPROVAL)
+  const standaloneCallsBeforeRace = setPluginEnableCalls
+  await assert.rejects(() => mcp.toggleMcp(ctx, 'pencil', true, async () => {
+    standaloneEntry.options.config = { ...standaloneEntry.options.config, command: 'pen-race' }
+  }), /审批期间已变化/)
+  assert.equal(setPluginEnableCalls, standaloneCallsBeforeRace)
+  assert.equal(standaloneEnabled, true)
+  standaloneEntry.options.config = { ...standaloneEntry.options.config, command: 'pen-off' }
+  approvalRequests.length = 0
+  await mcp.testMcp(ctx, 'stdio-gated', recordApproval)
+  assert.equal(approvalRequests[0].action, 'mcp_test')
+  approvalRequests.length = 0
+  await mcp.restartMcp(ctx, 'stdio-gated', recordApproval)
+  assert.equal(approvalRequests[0].action, 'mcp_restart')
+  approvalRequests.length = 0
+  await mcp.testMcp(ctx, 'http-gated', recordApproval)
+  await mcp.restartMcp(ctx, 'http-gated', recordApproval)
+  assert.equal(approvalRequests.length, 0)
+  const refused = async () => { throw new Error('宿主拒绝了审批') }
+  await assert.rejects(() => mcp.toggleMcp(ctx, 'disabled-gated', true, refused), /宿主拒绝/)
+  assert.equal(config.servers['disabled-gated'].enabled, false)
+  await assert.rejects(() => mcp.saveMcp(ctx, { name: 'refused-gated', transport: 'stdio', command: 'npx', env: {}, enabled: true }, refused), /宿主拒绝/)
+  assert.equal(config.servers['refused-gated'], undefined)
+  await assert.rejects(() => mcp.saveMcp(ctx, { name: 'missing-gated', transport: 'stdio', command: 'npx', env: {}, enabled: true }), /缺少审批上下文/)
+  assert.equal(config.servers['missing-gated'], undefined)
+  await assert.rejects(() => mcp.saveMcp(ctx, { name: '__proto__', transport: 'stdio', command: 'npx', enabled: false }, mcp.PANEL_APPROVAL), /保留名称/)
+  assert.equal(Object.getPrototypeOf(config.servers), Object.prototype)
+  await assert.rejects(() => mcp.toggleMcp(ctx, '__proto__', true, mcp.PANEL_APPROVAL), /无效的 MCP 名称/)
+  config.servers['race-toggle'] = { name: 'race-toggle', transport: 'stdio', command: 'race-one', args: [], env: {}, cwd: '', enabled: false }
+  await assert.rejects(() => mcp.toggleMcp(ctx, 'race-toggle', true, async () => {
+    config.servers['race-toggle'].command = 'race-two'
+  }), /审批期间已变化/)
+  assert.equal(config.servers['race-toggle'].enabled, false)
+  const probesBeforeRace = probeCalls
+  await assert.rejects(() => mcp.testMcp(ctx, 'race-toggle', async () => {
+    config.servers['race-toggle'].command = 'race-three'
+  }), /审批期间已变化/)
+  assert.equal(probeCalls, probesBeforeRace)
+  const restartsBeforeRace = restartCalls
+  await assert.rejects(() => mcp.restartMcp(ctx, 'race-toggle', async () => {
+    config.servers['race-toggle'].command = 'race-four'
+  }), /审批期间已变化/)
+  assert.equal(restartCalls, restartsBeforeRace)
+  await assert.rejects(() => mcp.toggleMcp(ctx, 'race-toggle', true), /缺少审批上下文/)
 
   await fs.mkdir(join(temp, '.codex'), { recursive: true })
   await fs.writeFile(join(temp, '.claude.json'), JSON.stringify({ mcpServers: {
     pencil: { command: 'should-not-overwrite' },
     'remote-app': { command: 'npx', args: ['-y', 'remote'], env: { TOKEN: 'secret' } },
     'sse-app': { type: 'sse', url: 'https://example.com/sse', headers: { 'X-Test': 'yes' } },
+    'run-app': { command: 'run-app-cmd', args: ['--go'] },
+    'quiet-app': { command: 'quiet-cmd' },
   } }))
   await fs.writeFile(join(temp, '.codex', 'config.toml'), '[mcp_servers.codex-app]\ncommand = "codex-mcp"\nargs = ["--stdio"]\n[mcp_servers.pencil]\ncommand = "different-pencil"\n')
   let preview = await mcp.listMcpImports(ctx, temp)
@@ -325,14 +459,14 @@ try {
   const claude = JSON.parse(await fs.readFile(join(temp, '.claude.json'), 'utf8'))
   claude.mcpServers['remote-app'].command = 'changed-after-preview'
   await fs.writeFile(join(temp, '.claude.json'), JSON.stringify(claude))
-  await assert.rejects(() => mcp.importMcp(ctx, [staleId], temp), /预览后变化|重新扫描/)
+  await assert.rejects(() => mcp.importMcp(ctx, [staleId], temp, false, mcp.PANEL_APPROVAL), /预览后变化|重新扫描/)
   assert.equal(config.servers['remote-app'], undefined)
   preview = await mcp.listMcpImports(ctx, temp)
   const imported = await mcp.importMcp(ctx, [
     preview.servers.find(row => row.name === 'remote-app').id,
     preview.servers.find(row => row.name === 'codex-app').id,
     preview.servers.find(row => row.name === 'pencil').id,
-  ], temp)
+  ], temp, false, mcp.PANEL_APPROVAL)
   assert.deepEqual(imported.imported.sort(), ['codex-app', 'remote-app'])
   assert.deepEqual(imported.skipped, ['pencil'])
   assert.equal(config.servers['remote-app'].command, 'changed-after-preview')
@@ -350,6 +484,20 @@ try {
   const directRemoval = mcp.removePatchEntry('- insert:\n    - id: keep\n      name: keep\n', 'missing')
   assert.equal(directRemoval.removed, false)
   assert.equal(config.servers['codex-app'].enabled, false)
+
+  const importApprovals = []
+  preview = await mcp.listMcpImports(ctx, temp)
+  const runImport = await mcp.importMcp(ctx, [preview.servers.find(row => row.name === 'run-app').id], temp, true, async request => { importApprovals.push(request) })
+  assert.deepEqual(runImport.imported, ['run-app'])
+  assert.equal(importApprovals.length, 1)
+  assert.equal(importApprovals[0].action, 'mcp_import')
+  assert.deepEqual(importApprovals[0].servers.map(server => server.name), ['run-app'])
+  assert.equal(config.servers['run-app'].enabled, true)
+  const quietApprovals = []
+  const quietImport = await mcp.importMcp(ctx, [preview.servers.find(row => row.name === 'quiet-app').id], temp, false, async request => { quietApprovals.push(request) })
+  assert.deepEqual(quietImport.imported, ['quiet-app'])
+  assert.equal(quietApprovals.length, 0)
+  assert.equal(config.servers['quiet-app'].enabled, false)
 
   const updateCalls = []
   const registryManager = {
@@ -437,6 +585,11 @@ try {
     listVersions: async () => ({ status: 'listed', versions: [{ version: '9.9.9', bundle: true, prerelease: false }] }),
     updateBundle: async () => ({ result: { application: 'applied' } }),
   }
+  let approvalAvailable = true
+  let approvalOutcome = 'allowed-once'
+  let agentsInitiator = { id: 'test-session' }
+  const hostApprovals = []
+  const approvalService = { request: async request => { hostApprovals.push(request); return approvalOutcome } }
   const hostCtx = {
     fiber: { entry: { id: 'caps' } },
     tools: { register: value => { agentTool = value; return () => {} } },
@@ -447,9 +600,10 @@ try {
       if (key === 'webServer') return webServer
       if (key === 'configEditor') return configEditor
       if (key === 'connection') return connectionAvailable ? connection : undefined
+      if (key === 'approval') return approvalAvailable ? approvalService : undefined
       if (key === 'skills') return hostRefreshSkills
       if (key === 'workspaceRegistry') return workspaceRegistry
-      if (key === 'agents') return { get: id => id === 'test-session' ? { id } : undefined, currentInitiator: () => ({ id: 'test-session' }) }
+      if (key === 'agents') return { get: id => id === 'test-session' ? { id } : undefined, currentInitiator: () => agentsInitiator }
       if (key === 'workingDirectory') return { ensure: async () => projectWorkspace }
     },
   }
@@ -536,7 +690,65 @@ try {
   assert.ok(projectCreateResponse.data.path.startsWith(join(projectWorkspace, '.agents', 'skills')))
   await skills.deleteSkill(projectCreateResponse.data.path, true, projectWorkspace)
   assert.ok(hostRefreshCount > refreshBeforeRoute)
-  console.log('Skills sync, MCP listing/import/control, Host routes, and agent tool passed.')
+
+  hostApprovals.length = 0
+  const panelMcpSave = await invoke('/__dsh-capability-switch/mcp/save', 'POST', { name: 'route-mcp', transport: 'stdio', command: 'route-cmd', args: [], env: {}, enabled: true })
+  assert.equal(panelMcpSave.status, 200)
+  assert.equal(config.servers['route-mcp'].command, 'route-cmd')
+  await invoke('/__dsh-capability-switch/mcp/toggle', 'POST', { name: 'route-mcp', enabled: false })
+  const panelMcpEnable = await invoke('/__dsh-capability-switch/mcp/toggle', 'POST', { name: 'route-mcp', enabled: true })
+  assert.equal(panelMcpEnable.status, 200)
+  assert.equal(config.servers['route-mcp'].enabled, true)
+  assert.equal(hostApprovals.length, 0)
+
+  const exec = { agent: { id: 'test-session' }, callId: 'call-approval', signal: new AbortController().signal }
+  hostApprovals.length = 0
+  const toolSaved = await agentTool.execute({ action: 'mcp_save', server: { name: 'tool-stdio', transport: 'stdio', command: 'tool-cmd', args: ['--flag'], env: {}, enabled: true } }, exec)
+  assert.equal(toolSaved.name, 'tool-stdio')
+  assert.equal(hostApprovals.length, 1)
+  assert.equal(hostApprovals[0].toolName, 'capability_manager')
+  assert.equal(hostApprovals[0].callId, 'call-approval')
+  assert.equal(hostApprovals[0].agent.id, 'test-session')
+  assert.equal(hostApprovals[0].signal, exec.signal)
+  assert.match(hostApprovals[0].reason, /stdio/)
+  assert.match(hostApprovals[0].reason, /tool-stdio/)
+  assert.match(hostApprovals[0].displayReason.en, /Allow/)
+  assert.match(hostApprovals[0].displayReason.en, /tool-cmd --flag/)
+  assert.match(hostApprovals[0].displayReason.zh, /允许/)
+  assert.match(hostApprovals[0].displayReason.zh, /tool-cmd --flag/)
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'mcp_save', server: { name: 'tool-http', transport: 'streamable-http', url: 'https://example.com/mcp', headers: {}, enabled: true } }, exec)
+  assert.equal(hostApprovals.length, 0)
+  await agentTool.execute({ action: 'mcp_save', server: { name: 'tool-disabled', transport: 'stdio', command: 'off', enabled: false } }, exec)
+  assert.equal(hostApprovals.length, 0)
+  assert.equal(config.servers['tool-disabled'].enabled, false)
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'mcp_toggle', name: 'tool-stdio', enabled: false }, exec)
+  assert.equal(hostApprovals.length, 0)
+  assert.equal(config.servers['tool-stdio'].enabled, false)
+  approvalOutcome = 'rejected'
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_toggle', name: 'tool-stdio', enabled: true }, exec), /未批准/)
+  assert.equal(config.servers['tool-stdio'].enabled, false)
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_restart', name: 'tool-stdio' }, exec), /未批准/)
+  approvalOutcome = 'cancelled'
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_test', name: 'tool-stdio' }, exec), /取消/)
+  approvalOutcome = 'unavailable'
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_toggle', name: 'tool-stdio', enabled: true }, exec), /审批通道/)
+  approvalAvailable = false
+  approvalOutcome = 'allowed-once'
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_test', name: 'tool-stdio' }, exec), /审批服务/)
+  approvalAvailable = true
+  hostApprovals.length = 0
+  agentsInitiator = undefined
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_restart', name: 'tool-stdio' }, { callId: 'call-no-agent', signal: exec.signal }), /没有可路由的 Agent/)
+  assert.equal(hostApprovals.length, 0)
+  agentsInitiator = { id: 'test-session' }
+  approvalOutcome = 'rejected'
+  await assert.rejects(() => agentTool.execute({ action: 'mcp_save', server: { name: 'tool-refused', transport: 'stdio', command: 'nope', enabled: true } }, exec), /未批准/)
+  assert.equal(config.servers['tool-refused'], undefined)
+  approvalOutcome = 'allowed-once'
+
+  console.log('Skills sync, MCP listing/import/control, approval gates, Host routes, and agent tool passed.')
 } finally {
   if (resolve(temp).startsWith(resolve(tmpdir()))) await fs.rm(temp, { recursive: true, force: true })
 }

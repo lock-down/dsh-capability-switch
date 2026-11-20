@@ -87,7 +87,7 @@ $WORKSPACE/.agents/skills
 
 所有已注册工作区的 `.agents` 项目技能都会扫描并显示，可以直接编辑、启停或删除。跨工作区操作时，标题旁信息图标、编辑弹窗和删除确认会说明受影响的工作区、后续会话读取行为，以及正在运行的会话可能需要重新加载。
 
-项目级 `.dsh/skills` 由 DSH 管理，插件只展示。全局 `~/.agents/skills` 始终只读。
+项目级 `.dsh/skills` 由 DSH 管理，插件只展示。全局 `~/.agents/skills` 只读；通过同步链接编辑技能时，修改会写回该 Agent 源目录。
 
 ### MCP
 
@@ -101,6 +101,13 @@ $WORKSPACE/.agents/skills
 - 导入前显示预览和来源。默认不勾选，默认导入为停用。
 - 预览后来源变化会拒绝导入，避免执行未经确认的命令。
 - 同名现有条目会跳过；同名但配置不同时按来源分开显示。
+- Agent 工具在保存并启动、启用、重启、连接测试和导入并启用 stdio MCP 前请求宿主审批。
+- 审批未通过、被取消、没有审批通道或当前会话不提供审批提示时，操作直接失败，不写入配置，也不启动进程。
+- 启用、重启和连接测试在审批通过后会再次校验 stdio 配置；审批期间命令发生变化时拒绝执行。保存和导入写入的是审批时的配置。
+- 只在操作真的会启动本机 stdio 命令时请求审批；HTTP MCP、停用、删除和未启用导入不额外询问。
+- 面板中的操作由你直接发起，不重复弹出审批。
+
+DSH 默认的 `danger-full-access` 权限预设会把审批策略设为 `never`，此时这些 Agent 操作会被直接拒绝；需要审批时请切换到允许审批的权限预设，或直接在面板中操作。
 
 ![MCP 管理界面](docs/screenshots/mcp.png)
 
@@ -124,12 +131,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.4.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.5.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.4"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.5"
 ```
 
 ## 自动更新
@@ -211,9 +218,26 @@ npm test
 npm pack
 ```
 
+Windows 上也可以直接运行 PowerShell 入口。它会依次查找 `-NodePath`、PATH 中的 `node`、常见安装目录、`~/.dsh/dsh-runtimes` 下的 Node 和 `DSH_NODE_EXECUTABLE`；需要时会为 Electron 设置 `ELECTRON_RUN_AS_NODE=1`：
+
+```powershell
+pwsh -File test/run-windows.ps1
+# 或
+npm run test:windows
+```
+
+也可以显式指定 Node：
+
+```powershell
+pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
+```
+
+入口默认 300 秒超时，可用 `-TimeoutSeconds` 调整。
+
 回归测试覆盖：
 
 - Skills 新建、编辑、启停、删除和软链接同步
+- 技能路径校验（拒绝多级软链接逃逸）与跨卷删除回退
 - 复制同步、内容一致跳过、更新重复制和副本删除
 - 同名技能去重与技能来源接管
 - 全局 Agent 目录排除、会话目录不被全量加载
@@ -222,6 +246,8 @@ npm pack
 - 已注册工作区鉴权，拒绝未注册路径
 - MCP 导入预览、冲突处理和默认停用
 - 独立 MCP 编辑、只读权限、启停、补丁删除和备份
+- MCP 启动操作的宿主审批、拒绝后不写入配置、审批期间配置变化时拒绝执行、缺少审批上下文时失败关闭，以及 HTTP 与停用操作不请求审批
+- MCP 名称拒绝保留键，面板连接测试显示后端错误
 - SSE 映射、表单与 JSON 编辑
 - Host 路由、代理工具和无损 JSON 输出
 - npm registry 更新检查、稳定版本筛选、无更新状态和本地安装拒绝自动更新
