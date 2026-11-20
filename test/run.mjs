@@ -26,6 +26,8 @@ assert.match(clientSource, /const \[updateBusy, setUpdateBusy\] = useState\(''\)
 assert.match(clientSource, /\.dsh-caps-primary\{background:var\(--dsw-alias-button-primary-fill\);color:var\(--dsw-alias-label-primary-foreground\);/)
 assert.doesNotMatch(clientSource, /\.dsh-caps-primary[^{]*\{[^}]*--dsw-alias-label-on-color/)
 assert.match(clientSource, /result\.error \|\| result\.message/)
+assert.match(clientSource, /\/mcp\/save-batch/)
+assert.doesNotMatch(clientSource, /preferenceStore|function Preferences/)
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
@@ -280,7 +282,10 @@ try {
   const manager = {
     config: { servers: { get: () => config.servers } },
     ctx: { fiber: { entry: { id: 'mcp' } } },
-    list: () => Object.entries(config.servers).map(([name, entry]) => ({ name, status: { state: entry.enabled ? 'connected' : 'disabled' } })),
+    list: () => [
+      ...Object.entries(config.servers).map(([name, entry]) => ({ name, configured: true, status: { state: entry.enabled ? 'connected' : 'disabled' } })),
+      { name: 'registered-mcp', configured: true, status: { state: 'connected' } },
+    ],
     probe: async name => { probeCalls += 1; return { ok: true, toolNames: [name + '.tool'] } },
     restart: async () => { restartCalls += 1 },
   }
@@ -440,6 +445,43 @@ try {
   assert.equal(restartCalls, restartsBeforeRace)
   await assert.rejects(() => mcp.toggleMcp(ctx, 'race-toggle', true), /缺少审批上下文/)
 
+  const batchApprovals = []
+  const batchSaved = await mcp.saveMcpBatch(ctx, [
+    { name: 'batch-stdio', transport: 'stdio', command: 'batch-cmd', args: ['--a'], env: {}, enabled: true },
+    { name: 'batch-http', transport: 'streamable-http', url: 'https://example.com/batch', headers: {}, enabled: true },
+  ], async request => { batchApprovals.push(request) })
+  assert.deepEqual(batchSaved.saved.map(row => row.name), ['batch-stdio', 'batch-http'])
+  assert.equal(batchApprovals.length, 1)
+  assert.deepEqual(batchApprovals[0].servers.map(server => server.name), ['batch-stdio'])
+  assert.equal(config.servers['batch-stdio'].command, 'batch-cmd')
+  assert.equal(config.servers['batch-http'].url, 'https://example.com/batch')
+  const batchCount = Object.keys(config.servers).length
+  await assert.rejects(() => mcp.saveMcpBatch(ctx, [
+    { name: 'batch-ok', transport: 'stdio', command: 'ok', enabled: false },
+    { name: 'batch-bad', transport: 'stdio', command: '', enabled: true },
+  ], async () => {}), /启动命令/)
+  assert.equal(Object.keys(config.servers).length, batchCount)
+  assert.equal(config.servers['batch-ok'], undefined)
+  await assert.rejects(() => mcp.saveMcpBatch(ctx, [
+    { name: 'batch-stdio', transport: 'stdio', command: 'duplicate', enabled: false },
+  ], async () => {}), /同名/)
+  await assert.rejects(() => mcp.saveMcpBatch(ctx, [
+    { name: 'batch-no-context', transport: 'stdio', command: 'x', enabled: true },
+  ]), /缺少审批上下文/)
+  assert.equal(config.servers['batch-no-context'], undefined)
+
+  const registeredApprovals = []
+  const probesBeforeRegistered = probeCalls
+  await mcp.testMcp(ctx, 'registered-mcp', async request => { registeredApprovals.push(request) })
+  assert.equal(probeCalls, probesBeforeRegistered + 1)
+  assert.equal(registeredApprovals.length, 1)
+  assert.equal(registeredApprovals[0].action, 'mcp_test')
+  assert.deepEqual(registeredApprovals[0].servers, [{ name: 'registered-mcp', registered: true }])
+  const restartsBeforeRegistered = restartCalls
+  await assert.rejects(() => mcp.restartMcp(ctx, 'registered-mcp', async () => { throw new Error('宿主拒绝') }), /宿主拒绝/)
+  assert.equal(restartCalls, restartsBeforeRegistered)
+  await assert.rejects(() => mcp.testMcp(ctx, 'registered-mcp'), /缺少审批上下文/)
+
   await fs.mkdir(join(temp, '.codex'), { recursive: true })
   await fs.writeFile(join(temp, '.claude.json'), JSON.stringify({ mcpServers: {
     pencil: { command: 'should-not-overwrite' },
@@ -547,9 +589,43 @@ try {
   assert.equal(currentUpdate.latest, null)
   assert.equal(currentUpdate.error, null)
 
+  const guardedCalls = []
+  const guardedUpdater = updateModule.createUpdateManager({ get: () => ({
+    ...registryManager,
+    updateBundle: async (name, version) => { guardedCalls.push([name, version]); return { result: { application: 'applied' } } },
+  }) })
+  const guardedCheck = await guardedUpdater.check()
+  assert.equal(guardedCheck.state, 'available')
+  const invalidApply = await guardedUpdater.apply('9.9.9 --registry=http://example.com')
+  assert.equal(invalidApply.state, 'failed')
+  assert.match(invalidApply.error, /版本号/)
+  const downgradeApply = await guardedUpdater.apply('9.9.8')
+  assert.equal(downgradeApply.state, 'failed')
+  assert.match(downgradeApply.error, /候选/)
+  assert.deepEqual(guardedCalls, [])
+  const coldApply = await updateModule.createUpdateManager({ get: () => registryManager }).apply('9.9.9')
+  assert.equal(coldApply.state, 'failed')
+  assert.match(coldApply.error, /先检查/)
+  const unsupportedApply = await localUpdater.apply('9.9.9')
+  assert.equal(unsupportedApply.state, 'unsupported')
+  assert.equal(updateCalls.length, 1)
+  const flatUpdater = updateModule.createUpdateManager({ get: () => ({
+    ...registryManager,
+    updateBundle: async () => ({ application: 'applied' }),
+  }) })
+  await flatUpdater.check()
+  const flatApplied = await flatUpdater.apply('9.9.9')
+  assert.equal(flatApplied.state, 'updated')
+  const nullUpdater = updateModule.createUpdateManager({ get: () => ({
+    ...registryManager,
+    listVersions: async () => ({ status: 'listed', versions: [{ version: '9.9.9', bundle: true, prerelease: false, deprecated: null, incompatible: null }] }),
+  }) })
+  const nullUpdate = await nullUpdater.check()
+  assert.equal(nullUpdate.state, 'available')
+  assert.equal(nullUpdate.latest, '9.9.9')
+
   const host = await import(pathToFileURL(join(root, 'lib/index.js')))
   assert.deepEqual(host.inject, ['tools', 'skills'])
-  assert.deepEqual(host.normalizePreferences({ defaultTab: 'mcp', sidebarLabel: ' 工具 ' }), { sidebarVisible: true, sidebarLabel: '技能与MCP', defaultTab: 'mcp', showDescriptions: true, compactRows: true })
 
   const routes = new Map()
   let agentTool
@@ -608,7 +684,7 @@ try {
     },
   }
   host.apply(hostCtx, {})
-  assert.equal(routes.size, 19)
+  assert.equal(routes.size, 20)
   assert.equal(agentTool.output.schema.type, 'object')
   const listed = await agentTool.execute({ action: 'list' })
   assert.equal(listed.ok, true)
@@ -670,6 +746,7 @@ try {
   const stateResponse = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateResponse.status, 200)
   assert.ok(Array.isArray(stateResponse.data.skills))
+  assert.equal(stateResponse.data.prefs, undefined)
   assert.equal(typeof stateResponse.data.update.current, 'string')
   const updateCheck = await invoke('/__dsh-capability-switch/update/check', 'POST', {})
   assert.equal(updateCheck.status, 200)
@@ -699,6 +776,12 @@ try {
   const panelMcpEnable = await invoke('/__dsh-capability-switch/mcp/toggle', 'POST', { name: 'route-mcp', enabled: true })
   assert.equal(panelMcpEnable.status, 200)
   assert.equal(config.servers['route-mcp'].enabled, true)
+  const panelBatch = await invoke('/__dsh-capability-switch/mcp/save-batch', 'POST', { servers: [{ name: 'route-batch', transport: 'stdio', command: 'route-batch-cmd', args: [], env: {}, enabled: true }] })
+  assert.equal(panelBatch.status, 200)
+  assert.equal(config.servers['route-batch'].command, 'route-batch-cmd')
+  const panelRegisteredTest = await invoke('/__dsh-capability-switch/mcp/test', 'POST', { name: 'registered-mcp' })
+  assert.equal(panelRegisteredTest.status, 200)
+  assert.equal(panelRegisteredTest.data.ok, true)
   assert.equal(hostApprovals.length, 0)
 
   const exec = { agent: { id: 'test-session' }, callId: 'call-approval', signal: new AbortController().signal }
@@ -726,6 +809,12 @@ try {
   await agentTool.execute({ action: 'mcp_toggle', name: 'tool-stdio', enabled: false }, exec)
   assert.equal(hostApprovals.length, 0)
   assert.equal(config.servers['tool-stdio'].enabled, false)
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'mcp_restart', name: 'registered-mcp' }, exec)
+  assert.equal(hostApprovals.length, 1)
+  assert.match(hostApprovals[0].reason, /plugin-registered/)
+  assert.match(hostApprovals[0].displayReason.zh, /由其他插件注册/)
+  assert.match(hostApprovals[0].displayReason.en, /registered by another plugin/)
   approvalOutcome = 'rejected'
   await assert.rejects(() => agentTool.execute({ action: 'mcp_toggle', name: 'tool-stdio', enabled: true }, exec), /未批准/)
   assert.equal(config.servers['tool-stdio'].enabled, false)

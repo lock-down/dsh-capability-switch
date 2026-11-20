@@ -87,7 +87,7 @@ $WORKSPACE/.agents/skills
 
 所有已注册工作区的 `.agents` 项目技能都会扫描并显示，可以直接编辑、启停或删除。跨工作区操作时，标题旁信息图标、编辑弹窗和删除确认会说明受影响的工作区、后续会话读取行为，以及正在运行的会话可能需要重新加载。
 
-项目级 `.dsh/skills` 由 DSH 管理，插件只展示。全局 `~/.agents/skills` 只读；通过同步链接编辑技能时，修改会写回该 Agent 源目录。
+项目级 `.dsh/skills` 由 DSH 管理，插件只展示。全局 `~/.agents/skills` 只读；通过同步链接编辑技能时，修改会写回该 Agent 源目录。复制模式只修改 DSH 本地副本，并用指纹判断源变化和本地修改。
 
 ### MCP
 
@@ -96,6 +96,7 @@ $WORKSPACE/.agents/skills
 - 独立实例可直接编辑连接参数、启停和删除。删除前会备份 profile 补丁，再移除对应配置行。
 - 连接类型支持 `stdio` 和 `SSE / Streamable HTTP`。SSE 配置统一由 DSH 的 Streamable HTTP 传输承载。
 - 编辑支持表单和 JSON 两种方式。JSON 接受 `mcpServers` 包装对象或单个服务器配置；新建时可一次保存多个服务器，编辑时只能保存一个。
+- JSON 多服务器新建会先校验全部条目并完成审批，再一次性写入；任一失败不会留下部分配置。
 - JSON 中的 `type: "sse"` 或 `transport: "sse"` 会映射为 DSH 的 `streamable-http`。
 - 从 Claude Code、Codex、Gemini CLI、OpenCode 和 Cursor 导入用户级 MCP 配置。
 - 导入前显示预览和来源。默认不勾选，默认导入为停用。
@@ -105,6 +106,7 @@ $WORKSPACE/.agents/skills
 - 审批未通过、被取消、没有审批通道或当前会话不提供审批提示时，操作直接失败，不写入配置，也不启动进程。
 - 启用、重启和连接测试在审批通过后会再次校验 stdio 配置；审批期间命令发生变化时拒绝执行。保存和导入写入的是审批时的配置。
 - 只在操作真的会启动本机 stdio 命令时请求审批；HTTP MCP、停用、删除和未启用导入不额外询问。
+- Agent 对插件注册型 MCP 执行连接测试或重启时也会请求审批；这类服务由其他插件注册，无法读取传输类型，因此按可能启动本机命令处理。
 - 面板中的操作由你直接发起，不重复弹出审批。
 
 DSH 默认的 `danger-full-access` 权限预设会把审批策略设为 `never`，此时这些 Agent 操作会被直接拒绝；需要审批时请切换到允许审批的权限预设，或直接在面板中操作。
@@ -131,12 +133,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.5.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.6.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.5"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.6"
 ```
 
 ## 自动更新
@@ -247,7 +249,10 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - MCP 导入预览、冲突处理和默认停用
 - 独立 MCP 编辑、只读权限、启停、补丁删除和备份
 - MCP 启动操作的宿主审批、拒绝后不写入配置、审批期间配置变化时拒绝执行、缺少审批上下文时失败关闭，以及 HTTP 与停用操作不请求审批
+- 插件注册型 MCP 的连接测试与重启审批
+- 批量保存 MCP 的整批校验与一次写入
 - MCP 名称拒绝保留键，面板连接测试显示后端错误
+- 更新应用前的安装来源、候选版本与返回值校验
 - SSE 映射、表单与 JSON 编辑
 - Host 路由、代理工具和无损 JSON 输出
 - npm registry 更新检查、稳定版本筛选、无更新状态和本地安装拒绝自动更新
