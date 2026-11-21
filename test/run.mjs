@@ -664,6 +664,13 @@ try {
   let approvalAvailable = true
   let approvalOutcome = 'allowed-once'
   let agentsInitiator = { id: 'test-session' }
+  let sandboxPolicyAvailable = true
+  let sandboxMode = 'workspace-write'
+  let sandboxRoot = projectWorkspace
+  let sandboxAdditional = []
+  const sandboxPolicy = {
+    resolve: () => ({ mode: sandboxMode, workspaceRoot: sandboxRoot, additionalWritableRoots: sandboxAdditional }),
+  }
   const hostApprovals = []
   const approvalService = { request: async request => { hostApprovals.push(request); return approvalOutcome } }
   const hostCtx = {
@@ -677,6 +684,7 @@ try {
       if (key === 'configEditor') return configEditor
       if (key === 'connection') return connectionAvailable ? connection : undefined
       if (key === 'approval') return approvalAvailable ? approvalService : undefined
+      if (key === 'sandboxPolicy') return sandboxPolicyAvailable ? sandboxPolicy : undefined
       if (key === 'skills') return hostRefreshSkills
       if (key === 'workspaceRegistry') return workspaceRegistry
       if (key === 'agents') return { get: id => id === 'test-session' ? { id } : undefined, currentInitiator: () => agentsInitiator }
@@ -689,9 +697,11 @@ try {
   const listed = await agentTool.execute({ action: 'list' })
   assert.equal(listed.ok, true)
   assert.equal(isLosslessJson(listed), true)
+  hostApprovals.length = 0
   const createdWorkspace = await invoke('/__dsh-capability-switch/workspace/create', 'POST', { name: 'new-workspace', parent: temp })
   assert.equal(createdWorkspace.status, 200)
   assert.equal(createdWorkspace.data.workspace.path, join(temp, 'new-workspace'))
+  assert.equal(hostApprovals.length, 0)
   const otherSkill = join(temp, 'new-workspace', '.agents', 'skills', 'other-skill')
   await fs.mkdir(otherSkill, { recursive: true })
   await fs.writeFile(join(otherSkill, 'SKILL.md'), '---\nname: other-skill\ndescription: Other workspace skill\n---\n\n# Other\n')
@@ -784,6 +794,77 @@ try {
   assert.equal(panelRegisteredTest.data.ok, true)
   assert.equal(hostApprovals.length, 0)
 
+  const workspaceExec = { agent: { id: 'test-session', session: { id: 'test-session' } }, callId: 'call-workspace', signal: new AbortController().signal }
+  hostApprovals.length = 0
+  approvalOutcome = 'allowed-once'
+  sandboxPolicyAvailable = true
+  sandboxMode = 'workspace-write'
+  sandboxRoot = projectWorkspace
+  sandboxAdditional = []
+  const insideWorkspace = await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-inside', parent: projectWorkspace }, workspaceExec)
+  assert.equal(insideWorkspace.workspace.path, join(projectWorkspace, 'tool-workspace-inside'))
+  assert.equal(hostApprovals.length, 0)
+  await fs.access(join(projectWorkspace, 'tool-workspace-inside'))
+  hostApprovals.length = 0
+  const outsideWorkspace = await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-outside', parent: join(temp, 'outside-parent') }, workspaceExec)
+  assert.equal(outsideWorkspace.workspace.path, join(temp, 'outside-parent', 'tool-workspace-outside'))
+  assert.equal(hostApprovals.length, 1)
+  assert.equal(hostApprovals[0].callId, 'call-workspace')
+  assert.match(hostApprovals[0].reason, /workspace_create/)
+  assert.match(hostApprovals[0].displayReason.zh, /创建并注册工作区/)
+  assert.match(hostApprovals[0].displayReason.en, /create and register a workspace/)
+  await fs.access(join(temp, 'outside-parent', 'tool-workspace-outside'))
+  approvalOutcome = 'rejected'
+  hostApprovals.length = 0
+  const workspaceCountBeforeRefused = workspaceRecords.length
+  await assert.rejects(() => agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-refused', parent: join(temp, 'refused-parent') }, workspaceExec), /未批准/)
+  assert.equal(hostApprovals.length, 1)
+  assert.equal(workspaceRecords.length, workspaceCountBeforeRefused)
+  await assert.rejects(() => fs.access(join(temp, 'refused-parent', 'tool-workspace-refused')))
+  sandboxMode = 'read-only'
+  approvalOutcome = 'allowed-once'
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-readonly', parent: projectWorkspace }, workspaceExec)
+  assert.equal(hostApprovals.length, 1)
+  assert.match(hostApprovals[0].displayReason.zh, /只读/)
+  sandboxMode = 'danger-full-access'
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-full', parent: join(temp, 'full-parent') }, workspaceExec)
+  assert.equal(hostApprovals.length, 0)
+  sandboxMode = 'workspace-write'
+  const extraRoot = join(temp, 'extra-root')
+  await fs.mkdir(extraRoot, { recursive: true })
+  sandboxAdditional = [extraRoot]
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-extra', parent: extraRoot }, workspaceExec)
+  assert.equal(hostApprovals.length, 0)
+  sandboxAdditional = []
+  const escapeTarget = join(temp, 'escape-target')
+  await fs.mkdir(escapeTarget, { recursive: true })
+  const escapeLink = join(projectWorkspace, 'escape-link')
+  await fs.symlink(escapeTarget, escapeLink, process.platform === 'win32' ? 'junction' : 'dir')
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-escape', parent: escapeLink }, workspaceExec)
+  assert.equal(hostApprovals.length, 1)
+  await fs.access(join(escapeTarget, 'tool-workspace-escape'))
+  sandboxPolicyAvailable = false
+  hostApprovals.length = 0
+  await agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-nopolicy', parent: join(temp, 'nopolicy-parent') }, workspaceExec)
+  assert.equal(hostApprovals.length, 1)
+  assert.match(hostApprovals[0].reason, /without a resolvable session file policy/)
+  sandboxPolicyAvailable = true
+  approvalAvailable = false
+  const workspaceCountBeforeNoApproval = workspaceRecords.length
+  await assert.rejects(() => agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-noapproval', parent: join(temp, 'noapproval-parent') }, workspaceExec), /审批服务/)
+  assert.equal(workspaceRecords.length, workspaceCountBeforeNoApproval)
+  await assert.rejects(() => fs.access(join(temp, 'noapproval-parent', 'tool-workspace-noapproval')))
+  approvalAvailable = true
+  agentsInitiator = undefined
+  const workspaceCountBeforeNoAgent = workspaceRecords.length
+  await assert.rejects(() => agentTool.execute({ action: 'workspace_create', name: 'tool-workspace-noagent', parent: join(temp, 'noagent-parent') }), /没有可路由的 Agent/)
+  assert.equal(workspaceRecords.length, workspaceCountBeforeNoAgent)
+  agentsInitiator = { id: 'test-session' }
+
   const exec = { agent: { id: 'test-session' }, callId: 'call-approval', signal: new AbortController().signal }
   hostApprovals.length = 0
   const toolSaved = await agentTool.execute({ action: 'mcp_save', server: { name: 'tool-stdio', transport: 'stdio', command: 'tool-cmd', args: ['--flag'], env: {}, enabled: true } }, exec)
@@ -837,7 +918,7 @@ try {
   assert.equal(config.servers['tool-refused'], undefined)
   approvalOutcome = 'allowed-once'
 
-  console.log('Skills sync, MCP listing/import/control, approval gates, Host routes, and agent tool passed.')
+  console.log('Skills sync, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
 } finally {
   if (resolve(temp).startsWith(resolve(tmpdir()))) await fs.rm(temp, { recursive: true, force: true })
 }

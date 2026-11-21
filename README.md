@@ -85,6 +85,8 @@ $WORKSPACE/.agents/skills
 
 项目技能支持新建、编辑、启停和删除。新建时可绑定已有工作区，或创建并注册新工作区；新工作区默认放在 `~/Documents` 下，也可以在弹窗中修改父目录。
 
+Agent 工具创建并注册工作区前，先按当前会话的文件策略检查目标目录：`danger-full-access` 直接创建；`workspace-write` 位于会话工作区或其额外可写目录内直接创建；`read-only`、可写范围外或无法解析策略时请求宿主审批，未获批准不创建目录。目标路径按真实路径比较，符号链接越界按范围外处理。面板中由你直接创建，不额外询问。
+
 所有已注册工作区的 `.agents` 项目技能都会扫描并显示，可以直接编辑、启停或删除。跨工作区操作时，标题旁信息图标、编辑弹窗和删除确认会说明受影响的工作区、后续会话读取行为，以及正在运行的会话可能需要重新加载。
 
 项目级 `.dsh/skills` 由 DSH 管理，插件只展示。全局 `~/.agents/skills` 只读；通过同步链接编辑技能时，修改会写回该 Agent 源目录。复制模式只修改 DSH 本地副本，并用指纹判断源变化和本地修改。
@@ -133,12 +135,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.6.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.7.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.6"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.7"
 ```
 
 ## 自动更新
@@ -246,6 +248,7 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - 项目级、用户级、内置和全局 Agent 来源
 - 所有已注册工作区的项目技能扫描与跨工作区编辑
 - 已注册工作区鉴权，拒绝未注册路径
+- 工作区创建的会话可写范围判断、范围外审批、只读/无策略/无审批/无 Agent 失败关闭、符号链接越界和面板直连
 - MCP 导入预览、冲突处理和默认停用
 - 独立 MCP 编辑、只读权限、启停、补丁删除和备份
 - MCP 启动操作的宿主审批、拒绝后不写入配置、审批期间配置变化时拒绝执行、缺少审批上下文时失败关闭，以及 HTTP 与停用操作不请求审批
