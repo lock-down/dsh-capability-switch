@@ -20,6 +20,9 @@ for (const file of ['lib/client.js', 'lib/index.js', 'lib/mcp.js', 'lib/skills.j
   assert.equal(checked.status, 0, file + ' syntax error: ' + checked.stderr)
 }
 const clientSource = await fs.readFile(join(root, 'lib/client.js'), 'utf8')
+const hostSource = await fs.readFile(join(root, 'lib/index.js'), 'utf8')
+assert.doesNotMatch(hostSource, /requestRejection/)
+assert.match(hostSource, /auth: 'required'/)
 assert.doesNotMatch(clientSource, /perform\('update-/)
 assert.match(clientSource, /setData\(current => \(\{ \.\.\.current, update: result \}\)\)/)
 assert.match(clientSource, /const \[updateBusy, setUpdateBusy\] = useState\(''\)/)
@@ -629,9 +632,6 @@ try {
 
   const routes = new Map()
   let agentTool
-  let connectionAvailable = true
-  let connectionRejection
-  let connectionThrows = false
   let hostRefreshCount = 0
   const hostRefreshSkills = {
     registerProvider: create => {
@@ -641,10 +641,6 @@ try {
     },
   }
   const webServer = { register: route => { routes.set(route.path, route); return () => {} } }
-  const connection = { requestRejection: () => {
-    if (connectionThrows) throw new Error('connection unavailable')
-    return connectionRejection
-  } }
   const workspaceRecords = []
   const workspaceRegistry = {
     list: () => workspaceRecords,
@@ -664,6 +660,13 @@ try {
   let approvalAvailable = true
   let approvalOutcome = 'allowed-once'
   let agentsInitiator = { id: 'test-session' }
+  let observationDisposals = 0
+  const coldSessionQuery = {
+    observeSession: async id => ({
+      header: { id, cwd: temp },
+      [Symbol.dispose]: () => { observationDisposals += 1 },
+    }),
+  }
   let sandboxPolicyAvailable = true
   let sandboxMode = 'workspace-write'
   let sandboxRoot = projectWorkspace
@@ -682,10 +685,10 @@ try {
       if (key === 'pluginManager') return hostUpdateManager
       if (key === 'webServer') return webServer
       if (key === 'configEditor') return configEditor
-      if (key === 'connection') return connectionAvailable ? connection : undefined
       if (key === 'approval') return approvalAvailable ? approvalService : undefined
       if (key === 'sandboxPolicy') return sandboxPolicyAvailable ? sandboxPolicy : undefined
       if (key === 'skills') return hostRefreshSkills
+      if (key === 'sessionQuery') return coldSessionQuery
       if (key === 'workspaceRegistry') return workspaceRegistry
       if (key === 'agents') return { get: id => id === 'test-session' ? { id } : undefined, currentInitiator: () => agentsInitiator }
       if (key === 'workingDirectory') return { ensure: async () => projectWorkspace }
@@ -693,6 +696,7 @@ try {
   }
   host.apply(hostCtx, {})
   assert.equal(routes.size, 20)
+  assert.ok([...routes.values()].every(route => route.auth === 'required'))
   assert.equal(agentTool.output.schema.type, 'object')
   const listed = await agentTool.execute({ action: 'list' })
   assert.equal(listed.ok, true)
@@ -744,20 +748,15 @@ try {
     await pending
     return await done
   }
-  connectionAvailable = false
-  assert.equal((await invoke('/__dsh-capability-switch/state', 'GET')).status, 403)
-  connectionAvailable = true
-  connectionRejection = 401
-  assert.equal((await invoke('/__dsh-capability-switch/state', 'GET')).status, 401)
-  connectionRejection = undefined
-  connectionThrows = true
-  assert.equal((await invoke('/__dsh-capability-switch/state', 'GET')).status, 403)
-  connectionThrows = false
   const stateResponse = await invoke('/__dsh-capability-switch/state', 'GET')
   assert.equal(stateResponse.status, 200)
   assert.ok(Array.isArray(stateResponse.data.skills))
   assert.equal(stateResponse.data.prefs, undefined)
   assert.equal(typeof stateResponse.data.update.current, 'string')
+  const coldState = await invoke('/__dsh-capability-switch/state', 'GET', undefined, { 'x-dsh-session-id': 'cold-session' })
+  assert.equal(coldState.status, 200)
+  assert.equal(coldState.data.workspace, temp)
+  assert.equal(observationDisposals, 1)
   const updateCheck = await invoke('/__dsh-capability-switch/update/check', 'POST', {})
   assert.equal(updateCheck.status, 200)
   assert.equal(updateCheck.data.state, 'available')

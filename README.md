@@ -117,7 +117,7 @@ DSH 默认的 `danger-full-access` 权限预设会把审批策略设为 `never`�
 
 ## 安装
 
-当前版本针对 DSH `0.2.2-rc.5` 开发和验证。DSH 的其他版本可能调整服务接口。
+当前版本针对 DSH `0.2.3-alpha.2` 开发和验证。DSH 的其他版本可能调整服务接口。
 
 从 npm 安装，支持自动更新：
 
@@ -135,12 +135,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.7.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.8.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.7"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.8"
 ```
 
 ## 自动更新
@@ -258,6 +258,7 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - 更新应用前的安装来源、候选版本与返回值校验
 - SSE 映射、表单与 JSON 编辑
 - Host 路由、代理工具和无损 JSON 输出
+- 面板路由的 required 鉴权声明、冷会话观测租约释放与 DSH 0.2.3 兼容检查
 - npm registry 更新检查、稳定版本筛选、无更新状态和本地安装拒绝自动更新
 - 更新操作与 Skills、MCP 列表状态及 busy 状态隔离
 
