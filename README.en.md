@@ -157,12 +157,12 @@ npm install --ignore-scripts
 
 In DSH, open **Plugins**, choose **Add plugin**, and select this directory. After installation, `Skills & MCP` appears in the left sidebar.
 
-You can also download `dsh-capability-switch-1.6.1.tgz` from a GitHub Release and install it as a directory.
+You can also download `dsh-capability-switch-1.6.2.tgz` from a GitHub Release and install it as a directory.
 
 Install a pinned GitHub version (Git installs do not auto-update):
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.1"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.2"
 ```
 
 ## Auto update
@@ -179,7 +179,7 @@ npm installations check for and update to compatible stable releases:
 
 The header shows the current version, the auto-update switch, **Release notes**, and **Check for updates**. When an update is available, the status bar shows the latest and current versions and an **Update to this version** button. With no update available, a manual check reports **You are on the latest version** and the current version. Checking updates changes only the update state and never reloads or disables the Skills or MCP list. Turning auto update off still allows manual checks and installs. The preference is stored in `~/.dsh/capability-switch/update-preferences.json`.
 
-**Release notes** reads this repository's GitHub Releases and shows the latest release name, version, publication date, notes, and collapsible earlier releases. Results are cached for 10 minutes and can be refreshed manually; failures show an error and a retry action.
+**Release notes** reads this repository's GitHub Releases and shows the latest release name, version, publication date, notes, and collapsible earlier releases. The current version prefers the packaged Chinese or English note under `docs/releases`; older releases fall back to the GitHub body. Results are cached for 10 minutes and can be refreshed manually; failures show an error and a retry action.
 
 `1.5.0` is the first version with auto update. Versions `1.4.9` and older need one manual install of `1.5.0` before later versions can update automatically.
 

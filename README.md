@@ -148,12 +148,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.1.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.2.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.1"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.2"
 ```
 
 ## 自动更新
@@ -170,7 +170,7 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 
 顶部显示当前版本、自动更新开关、“版本说明”和“检查更新”。发现新版本时，状态条会同时显示最新版本号和当前版本号，并提供“更新到该版本”按钮；没有可用更新时，手动检查会明确显示“当前已是最新版本”和当前版本号。更新检查只刷新更新状态，不会重新加载或禁用 Skills、MCP 列表。关闭自动更新后仍可手动检查和安装。设置保存在 `~/.dsh/capability-switch/update-preferences.json`。
 
-“版本说明”读取本仓库的 GitHub Releases，显示最新 Release 的名称、版本、发布日期、说明和可折叠的历史版本。结果缓存 10 分钟，也可以手动刷新；读取失败时显示错误和重试入口。
+“版本说明”读取本仓库的 GitHub Releases，显示最新 Release 的名称、版本、发布日期、说明和可折叠的历史版本。当前版本优先使用包内 `docs/releases` 的中英文说明，其他历史版本回退到 GitHub 原文。结果缓存 10 分钟，也可以手动刷新；读取失败时显示错误和重试入口。
 
 `1.5.0` 是首个带自动更新机制的版本；`1.4.9` 及更早版本需要手动安装一次 `1.5.0`，之后的新版本才会自动更新。
 

@@ -40,6 +40,10 @@ assert.match(clientSource, /dsh-caps-row-selectable/)
 assert.match(clientSource, /useLocaleRevision/)
 assert.match(clientSource, /localeService\.subscribe/)
 assert.match(clientSource, /label: \(\) => t\('title'\)/)
+assert.match(clientSource, /params\.set\('workspaces', '1'\)/)
+assert.doesNotMatch(clientSource, /tab === 'skills' \? '1' : '0'/)
+assert.match(clientSource, /const localeRevision = useLocaleRevision\(\)/)
+assert.match(clientSource, /setNotice\(''\)/)
 const messagesStart = clientSource.indexOf('const MESSAGES = ')
 const messagesEnd = clientSource.indexOf('\n\n    function t', messagesStart)
 assert.ok(messagesStart >= 0 && messagesEnd > messagesStart)
@@ -226,14 +230,14 @@ try {
   const failedReleases = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: false, status: 503, json: async () => [] }) })
   await assert.rejects(() => failedReleases.load(), /HTTP 503/)
   const localReleaseReader = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: true, json: async () => [
-    { tag_name: 'v1.6.1', name: '1.6.1', body: 'GitHub original', published_at: '2026-11-27T00:00:00Z', html_url: 'https://github.com/lock-down/dsh-capability-switch/releases/tag/v1.6.1', prerelease: false },
+    { tag_name: 'v1.6.2', name: '1.6.1', body: 'GitHub original', published_at: '2026-11-27T00:00:00Z', html_url: 'https://github.com/lock-down/dsh-capability-switch/releases/tag/v1.6.2', prerelease: false },
   ] }) })
   const jaRelease = await localReleaseReader.load({ lang: 'ja' })
-  assert.match(jaRelease.releases[0].body, /plugin UI now has complete i18n/)
+  assert.match(jaRelease.releases[0].body, /Fix inconsistent Skills and MCP tab counts/)
   const zhRelease = await localReleaseReader.load({ lang: 'zh' })
-  assert.match(zhRelease.releases[0].body, /插件界面新增完整 i18n/)
+  assert.match(zhRelease.releases[0].body, /修复 Skills 与 MCP 标签计数不一致/)
   const enRelease = await localReleaseReader.load({ lang: 'en' })
-  assert.match(enRelease.releases[0].body, /plugin UI now has complete i18n/)
+  assert.match(enRelease.releases[0].body, /Fix inconsistent Skills and MCP tab counts/)
   for (const lang of ['zh', 'en', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
     const meta = JSON.parse(await fs.readFile(join(root, 'locale', lang + '.json'), 'utf8'))
     assert.ok(meta.meta?.title, lang + ' metadata title')
@@ -241,7 +245,7 @@ try {
     await fs.access(join(root, 'README.' + (lang === 'zh' ? 'md' : lang + '.md')))
   }
   for (const lang of ['zh', 'en']) {
-    assert.ok((await fs.readFile(join(root, 'docs', 'releases', '1.6.1.' + lang + '.md'), 'utf8')).length > 100, lang + ' release note')
+    assert.ok((await fs.readFile(join(root, 'docs', 'releases', '1.6.2.' + lang + '.md'), 'utf8')).length > 100, lang + ' release note')
   }
 
   const deleteSource = join(temp, 'agents', 'skills', 'link-delete')
