@@ -259,7 +259,7 @@ npm test
 npm pack
 ```
 
-Windows 上也可以直接运行 PowerShell 入口。它会依次查找 `-NodePath`、PATH 中的 `node`、常见安装目录、`~/.dsh/dsh-runtimes` 下的 Node 和 `DSH_NODE_EXECUTABLE`；需要时会为 Electron 设置 `ELECTRON_RUN_AS_NODE=1`：
+Windows 上也可以直接运行 PowerShell 入口。它运行与 `npm test` 相同的 `test/run.mjs` 完整回归，包含 i18n、同步模式、批量删除、ZIP、Release Note 和计数检查，不需要维护第二份测试清单。入口会依次查找 `-NodePath`、PATH 中的 `node`、常见安装目录、`~/.dsh/dsh-runtimes` 下的 Node 和 `DSH_NODE_EXECUTABLE`；需要时会为 Electron 设置 `ELECTRON_RUN_AS_NODE=1`：
 
 ```powershell
 pwsh -File test/run-windows.ps1

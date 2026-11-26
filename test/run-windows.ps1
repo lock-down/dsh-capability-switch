@@ -4,7 +4,11 @@
   Run the DSH capability-switch test suite from Windows PowerShell.
 
 .DESCRIPTION
-  Locates a Node.js runtime and runs test/run.mjs with the same exit code.
+  Locates a Node.js runtime and runs the complete test/run.mjs suite with the
+  same exit code. There is no separate Windows test list: the i18n, sync-mode,
+  batch-delete, ZIP import, release-note, count, and Host-route regressions all
+  run here as well.
+
   The lookup order is: -NodePath, node on PATH, the standard Node.js install
   directories, the Node runtimes bundled under ~/.dsh/dsh-runtimes, and
   DSH_NODE_EXECUTABLE.
@@ -49,6 +53,7 @@ function Invoke-TestScript {
   $startInfo = New-Object System.Diagnostics.ProcessStartInfo
   $startInfo.FileName = $Node
   $startInfo.Arguments = '"' + $Script.Replace('"', '\"') + '"'
+  $startInfo.WorkingDirectory = $repoRoot
   $startInfo.UseShellExecute = $false
   $startInfo.RedirectStandardOutput = $true
   $startInfo.RedirectStandardError = $true

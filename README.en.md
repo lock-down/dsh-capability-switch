@@ -268,7 +268,7 @@ npm test
 npm pack
 ```
 
-On Windows, a PowerShell entry point finds Node from `-NodePath`, `node` on PATH, common installation directories, Node under `~/.dsh/dsh-runtimes`, or `DSH_NODE_EXECUTABLE`; it sets `ELECTRON_RUN_AS_NODE=1` for Electron when needed:
+On Windows, the PowerShell entry point runs the same complete `test/run.mjs` suite as `npm test`, including the i18n, sync-mode, batch-delete, ZIP, release-note, and count checks; there is no second Windows test list. It finds Node from `-NodePath`, `node` on PATH, common installation directories, Node under `~/.dsh/dsh-runtimes`, or `DSH_NODE_EXECUTABLE`; it sets `ELECTRON_RUN_AS_NODE=1` for Electron when needed:
 
 ```powershell
 pwsh -File test/run-windows.ps1
