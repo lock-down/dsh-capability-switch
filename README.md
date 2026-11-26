@@ -62,6 +62,9 @@ DSH 默认会把全局 Agent 目录作为技能来源。插件在 `ctx.skills` �
 - 同步前逐项预览，可选择同步方式和要处理的技能。
 - 已有正确目标会跳过；不同链接、真实目录或旧副本会先备份，再替换。
 - 删除软链接同步技能时只移除 DSH 链接；删除复制同步技能时只移除 DSH 副本。
+- 已同步技能在列表中显示“软链”或“复制”模式。
+- 支持勾选技能批量删除，逐项返回成功与失败；软链同步技能只移除 DSH 链接。
+- 新建技能支持拖拽或选择 `.zip` 技能包，解析后保留包内 `SKILL.md` 和附属文件。
 
 ### 项目级技能
 
@@ -135,12 +138,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.5.8.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.0.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.5.8"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.0"
 ```
 
 ## 自动更新
@@ -155,11 +158,13 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 - 有 HMR 时安装后自动加载；没有 HMR 时提示重启 DSH。
 - 自动更新不会修改 Skills、MCP、工作区或同步状态。
 
-顶部显示当前版本、自动更新开关和“检查更新”。发现新版本时，状态条会同时显示最新版本号和当前版本号，并提供“更新到该版本”按钮；没有可用更新时，手动检查会明确显示“当前已是最新版本”和当前版本号。更新检查只刷新更新状态，不会重新加载或禁用 Skills、MCP 列表。关闭自动更新后仍可手动检查和安装。设置保存在 `~/.dsh/capability-switch/update-preferences.json`。
+顶部显示当前版本、自动更新开关、“版本说明”和“检查更新”。发现新版本时，状态条会同时显示最新版本号和当前版本号，并提供“更新到该版本”按钮；没有可用更新时，手动检查会明确显示“当前已是最新版本”和当前版本号。更新检查只刷新更新状态，不会重新加载或禁用 Skills、MCP 列表。关闭自动更新后仍可手动检查和安装。设置保存在 `~/.dsh/capability-switch/update-preferences.json`。
+
+“版本说明”读取本仓库的 GitHub Releases，显示最新 Release 的名称、版本、发布日期、说明和可折叠的历史版本。结果缓存 10 分钟，也可以手动刷新；读取失败时显示错误和重试入口。
 
 `1.5.0` 是首个带自动更新机制的版本；`1.4.9` 及更早版本需要手动安装一次 `1.5.0`，之后的新版本才会自动更新。
 
-更新检查会访问 npm registry 读取版本列表；不会上传本机 Skills 或 MCP 配置。
+更新检查会访问 npm registry 读取版本列表，版本说明会访问 GitHub Releases API；不会上传本机 Skills 或 MCP 配置。
 
 ## 使用
 
@@ -168,8 +173,8 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 1. 打开 `技能与MCP` 的 Skills 标签。
 2. 点击“从 Agent 目录同步”。
 3. 选择同步方式：
-   - 只用软链接：Windows 需要开启开发者模式。
-   - 只用复制：占用更多空间，更新后会重新复制。
+   - 软链模式：Windows 需要开启开发者模式。
+   - 复制模式：占用更多空间，更新后会重新复制。
 4. 检查来源、目标、备份目录和变更列表。
 5. 勾选要同步的技能，然后点击“确认同步”。
 
@@ -188,6 +193,28 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 
 同步前如果 DSH 中已有真实目录或不同内容，插件会把它移到 `~/.dsh/capability-switch/skill-sync-backups`，再替换为目标模式。
 
+### 批量删除 Skills
+
+1. 在 Skills 标签勾选要删除的技能，可先“全选”或按当前搜索过滤后全选。
+2. 点击“批量删除”，确认列表和数量。
+3. 删除逐项执行，结果会显示成功数和失败原因。
+
+软链同步技能只删除 DSH 链接，Agent 源目录保持不变；本地新建、复制同步和真实目录会移入 `~/.dsh/capability-switch/trash`。
+
+### 导入 ZIP 技能包
+
+1. 点击“新建技能”，把 `.zip` 拖入弹窗，或点击压缩包区域选择文件。
+2. 解析后会显示包内名称、描述和文件列表；ZIP 包按包内 `SKILL.md` 原样导入。
+3. 选择用户级或项目级、目标工作区，然后点击“导入技能包”。
+
+限制：压缩包不超过 8 MiB，解压后不超过 20 MiB、200 个文件，单个文件不超过 2 MiB，`SKILL.md` 不超过 1 MiB；拒绝绝对路径和目录穿越。`SKILL.md` 可位于压缩包根目录或单层目录中。
+
+### 查看版本说明
+
+1. 点击顶部“版本说明”。
+2. 查看最新 Release 的说明和发布日期。
+3. 展开“历史版本”查看旧 Release 说明，或打开 GitHub 查看完整页面。
+
 ### 导入 MCP
 
 1. 切到 MCP 标签，点击“从应用导入”。
@@ -199,7 +226,7 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 
 ## 数据与权限
 
-插件只访问本机文件：
+插件只访问本机文件和固定的公开网络端点：
 
 - `~/.dsh/skills`
 - `~/.agents/skills`
@@ -212,7 +239,7 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 
 删除独立 MCP 前，原 profile 补丁会备份到 `~/.dsh/capability-switch/backups`。
 
-插件不上传技能、MCP 配置或凭据。自动更新只访问 npm registry 读取版本列表并安装插件包；MCP 连接由 DSH 的 MCP Manager 和对应 MCP 服务处理。
+网络访问仅限 npm registry（自动更新）和 `api.github.com` 上的本仓库 Releases（版本说明）。插件不上传技能、MCP 配置或凭据；MCP 连接由 DSH 的 MCP Manager 和对应 MCP 服务处理。
 
 ## 开发
 
@@ -257,7 +284,11 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - MCP 名称拒绝保留键，面板连接测试显示后端错误
 - 更新应用前的安装来源、候选版本与返回值校验
 - SSE 映射、表单与 JSON 编辑
-- Host 路由、代理工具和无损 JSON 输出
+- 同步模式识别（软链/复制）与复制基线匹配
+- 技能批量删除的成功、失败与部分完成
+- ZIP 技能包解析、附属文件导入、目录穿越与多 SKILL.md 拒绝
+- Release 说明缓存、链接校验与请求失败
+- Host 路由、ZIP/批量删除路由、代理工具和无损 JSON 输出
 - 面板路由的 required 鉴权声明、冷会话观测租约释放与 DSH 0.2.3 兼容检查
 - npm registry 更新检查、稳定版本筛选、无更新状态和本地安装拒绝自动更新
 - 更新操作与 Skills、MCP 列表状态及 busy 状态隔离
@@ -266,7 +297,9 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 
 - `lib/index.js`：Host 入口、HTTP 路由和 `capability_manager` 工具
 - `lib/client.js`：侧边栏界面
-- `lib/skills.js`：Skills 管理和同步
+- `lib/skills.js`：Skills 管理、同步、批量删除和 ZIP 导入
+- `lib/zip.js`：ZIP 技能包安全解析
+- `lib/releases.js`：GitHub Release 说明读取与缓存
 - `lib/mcp.js`：MCP 管理和独立实例操作
 - `lib/update.js`：npm 自动更新检查、下载和 DSH 插件管理器更新
 - `lib/imports.js`：其他应用的 MCP 配置读取

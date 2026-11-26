@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Skills & MCP capabilities",
-    "description": "Manage Skills and MCP servers from the DSH sidebar. On the Host side, skill discovery is taken over so the global ~/.agents/skills directory never enters the model catalog; only skills you explicitly select are synchronized. Search, create, edit, toggle, and delete user-level and project-level skills, and sync them as symlinks or independent copies. MCP supports editing Manager and standalone entries in form or JSON, toggling, connection tests, reconnect, and imports from other apps. Auto-update, sidebar entry, and display preferences persist in the active DSH profile."
+    "description": "Manage Skills and MCP servers from the DSH sidebar. On the Host side, skill discovery is taken over so the global ~/.agents/skills directory never enters the model catalog; only skills you explicitly select are synchronized. Search, create (including ZIP skill packages), edit, toggle, batch-delete, and inspect symlink or copy sync modes for user-level and project-level skills. MCP supports editing Manager and standalone entries in form or JSON, toggling, connection tests, reconnect, and imports from other apps. Auto-update and GitHub Release notes are built in."
   }
 }

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Skills 与 MCP 能力管理",
-    "description": "在 DSH 侧边栏统一管理 Skills 与 MCP。技能侧在 Host 层接管扫描结果：全局 ~/.agents/skills 不进入模型技能目录，只有明确选择的技能才会同步到 DSH；支持用户级和项目级技能的搜索、新建、编辑、启停和删除，并可按软链接或复制方式同步。MCP 支持 Manager 与独立实例的表单/JSON 编辑、启停、连接测试、重新连接和从其他应用导入。自动更新、侧边栏入口和显示偏好保存在当前 DSH profile。"
+    "description": "在 DSH 侧边栏统一管理 Skills 与 MCP。技能侧在 Host 层接管扫描结果：全局 ~/.agents/skills 不进入模型技能目录，只有明确选择的技能才会同步到 DSH；支持用户级和项目级技能的搜索、新建（含 ZIP 技能包）、编辑、启停、批量删除，并显示软链或复制同步模式。MCP 支持 Manager 与独立实例的表单/JSON 编辑、启停、连接测试、重新连接和从其他应用导入。支持自动更新和 GitHub Release 版本说明。"
   }
 }

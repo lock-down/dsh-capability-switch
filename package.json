@@ -1,6 +1,6 @@
 {
   "name": "dsh-capability-switch",
-  "version": "1.5.8",
+  "version": "1.6.0",
   "description": "A DSH sidebar plugin for skill-loading takeover, Skill synchronization, and MCP management.",
   "license": "MIT",
   "author": "lock-down",
@@ -41,6 +41,7 @@
     "test:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File test/run-windows.ps1"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "smol-toml": "^1.9.1",
     "yaml": "^2.9.1"
   },

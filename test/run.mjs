@@ -5,6 +5,7 @@ import { basename, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { EventEmitter } from 'node:events'
 import { spawnSync } from 'node:child_process'
+import { strToU8, zipSync } from 'fflate'
 
 function isLosslessJson(value) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return true
@@ -31,6 +32,11 @@ assert.doesNotMatch(clientSource, /\.dsh-caps-primary[^{]*\{[^}]*--dsw-alias-lab
 assert.match(clientSource, /result\.error \|\| result\.message/)
 assert.match(clientSource, /\/mcp\/save-batch/)
 assert.doesNotMatch(clientSource, /preferenceStore|function Preferences/)
+assert.match(clientSource, /\/skill\/parse-zip/)
+assert.match(clientSource, /\/skill\/import-zip/)
+assert.match(clientSource, /batchDeleteTitle/)
+assert.match(clientSource, /releaseTitle/)
+assert.match(clientSource, /dsh-caps-row-selectable/)
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
@@ -77,6 +83,7 @@ try {
   const deduped = (await skills.listSkills()).filter(skill => skill.name === 'agent-demo')
   assert.equal(deduped.length, 1)
   assert.equal(deduped[0].source, 'user-dsh')
+  assert.equal(deduped[0].syncMode, 'symlink')
   await assert.rejects(() => skills.deleteSkill(join(agentSkill, 'SKILL.md'), true), /只允许删除用户级或当前工作区/)
   assert.ok(await fs.readFile(join(agentSkill, 'SKILL.md'), 'utf8'))
   const linkedEntry = join(agentLink, 'SKILL.md')
@@ -116,6 +123,7 @@ try {
   assert.equal(copySynced.mode, 'copy')
   assert.equal((await fs.lstat(copyTarget)).isSymbolicLink(), false)
   assert.equal(await fs.readFile(join(copyTarget, 'asset.txt'), 'utf8'), 'copy asset\n')
+  assert.equal((await skills.listSkills()).find(skill => skill.name === 'copy-demo').syncMode, 'copy')
   assert.equal((await skills.previewAgentSkillSync('copy')).items.find(item => item.name === 'copy-demo').action, 'skip')
   const copyEntry = join(copyTarget, 'SKILL.md')
   await fs.writeFile(join(copySource, 'SKILL.md'), '---\nname: copy-demo\ndescription: copy\n---\n\n# Copy v2\n')
@@ -141,6 +149,60 @@ try {
   await skills.deleteSkill(copyEntry, true)
   await assert.rejects(() => fs.access(copyTarget))
   await fs.access(join(copySource, 'SKILL.md'))
+
+  const batchA = await skills.createSkill({ name: 'batch-a', description: 'Batch A', body: '# Batch A' })
+  const batchB = await skills.createSkill({ name: 'batch-b', description: 'Batch B', body: '# Batch B' })
+  await assert.rejects(() => skills.deleteSkills([{ path: batchA.path }], false), /确认/)
+  const batchDeleted = await skills.deleteSkills([{ path: batchA.path }, { path: batchB.path }], true)
+  assert.equal(batchDeleted.total, 2)
+  assert.equal(batchDeleted.deleted.length, 2)
+  assert.equal(batchDeleted.failed.length, 0)
+  await assert.rejects(() => fs.access(join(temp, 'skills', 'batch-a')))
+  const batchC = await skills.createSkill({ name: 'batch-c', description: 'Batch C', body: '# Batch C' })
+  const batchPartial = await skills.deleteSkills([{ path: batchC.path }, { path: join(temp, 'outside.md') }], true)
+  assert.equal(batchPartial.deleted.length, 1)
+  assert.equal(batchPartial.failed.length, 1)
+
+  const zipLib = await import(pathToFileURL(join(root, 'lib/zip.js')))
+  const zipBytes = zipSync({
+    'zip-demo/SKILL.md': strToU8('---\nname: zip-demo\ndescription: Zip demo\n---\n\n# Zip demo\n'),
+    'zip-demo/assets/note.txt': strToU8('companion'),
+  })
+  const parsedZip = zipLib.readSkillZip(new Uint8Array(zipBytes))
+  assert.equal(parsedZip.name, 'zip-demo')
+  assert.equal(parsedZip.description, 'Zip demo')
+  assert.equal(parsedZip.fileCount, 2)
+  assert.deepEqual(parsedZip.files.map(file => file.path), ['SKILL.md', 'assets/note.txt'])
+  assert.throws(() => zipLib.readSkillZip(new Uint8Array(zipSync({ '../escape.txt': strToU8('x') }))), /目录穿越/)
+  assert.throws(() => zipLib.readSkillZip(new Uint8Array(zipSync({ 'a/SKILL.md': strToU8('---\nname: a\ndescription: A\n---\n'), 'b/SKILL.md': strToU8('---\nname: b\ndescription: B\n---\n') }))), /多个|同时包含|一个 SKILL/)
+  assert.throws(() => zipLib.readSkillZip(new Uint8Array(zipSync({ 'a/SKILL.md': strToU8('---\nname: a\ndescription: A\n---\n'), 'a/b/SKILL.md': strToU8('---\nname: b\ndescription: B\n---\n') }))), /根级 SKILL/)
+  const importedZip = await skills.importSkillZip({ zip: Buffer.from(zipBytes).toString('base64'), scope: 'user' })
+  assert.equal(importedZip.name, 'zip-demo')
+  assert.equal(await fs.readFile(join(temp, 'skills', 'zip-demo', 'assets', 'note.txt'), 'utf8'), 'companion')
+  assert.equal((await skills.listSkills()).find(skill => skill.name === 'zip-demo').syncMode, undefined)
+  await assert.rejects(() => skills.importSkillZip({ zip: Buffer.from(zipBytes).toString('base64'), scope: 'user' }), /同名/)
+  await skills.deleteSkill(importedZip.path, true)
+
+  const releaseLib = await import(pathToFileURL(join(root, 'lib/releases.js')))
+  let releaseCalls = 0
+  const releaseReader = releaseLib.createReleaseReader({
+    fetchImpl: async () => {
+      releaseCalls += 1
+      return { ok: true, json: async () => [
+        { tag_name: 'v9.9.9', name: '9.9.9', body: '# Notes\n- item', published_at: '2026-01-02T00:00:00Z', html_url: 'https://github.com/lock-down/dsh-capability-switch/releases/tag/v9.9.9', prerelease: false },
+        { tag_name: 'v9.9.8', name: '9.9.8', body: 'Older', published_at: '2026-01-01T00:00:00Z', html_url: 'https://example.com/not-a-release', prerelease: false },
+      ] }
+    },
+    now: () => 1000,
+  })
+  const releaseData = await releaseReader.load()
+  assert.equal(releaseData.latest.tag, 'v9.9.9')
+  assert.equal(releaseData.releases.length, 2)
+  assert.equal(releaseData.releases[1].htmlUrl, '')
+  await releaseReader.load()
+  assert.equal(releaseCalls, 1)
+  const failedReleases = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: false, status: 503, json: async () => [] }) })
+  await assert.rejects(() => failedReleases.load(), /HTTP 503/)
 
   const deleteSource = join(temp, 'agents', 'skills', 'link-delete')
   await fs.mkdir(deleteSource, { recursive: true })
@@ -695,7 +757,7 @@ try {
     },
   }
   host.apply(hostCtx, {})
-  assert.equal(routes.size, 20)
+  assert.equal(routes.size, 24)
   assert.ok([...routes.values()].every(route => route.auth === 'required'))
   assert.equal(agentTool.output.schema.type, 'object')
   const listed = await agentTool.execute({ action: 'list' })
@@ -757,6 +819,21 @@ try {
   assert.equal(coldState.status, 200)
   assert.equal(coldState.data.workspace, temp)
   assert.equal(observationDisposals, 1)
+  const routeZip = zipSync({
+    'route-zip/SKILL.md': strToU8('---\nname: route-zip\ndescription: Route zip\n---\n\n# Route zip\n'),
+    'route-zip/asset.txt': strToU8('route asset'),
+  })
+  const routeZipBody = Buffer.from(routeZip).toString('base64')
+  const parsedRouteZip = await invoke('/__dsh-capability-switch/skill/parse-zip', 'POST', { zip: routeZipBody })
+  assert.equal(parsedRouteZip.status, 200)
+  assert.equal(parsedRouteZip.data.name, 'route-zip')
+  assert.equal(parsedRouteZip.data.fileCount, 2)
+  const importedRouteZip = await invoke('/__dsh-capability-switch/skill/import-zip', 'POST', { zip: routeZipBody, scope: 'user' })
+  assert.equal(importedRouteZip.status, 200)
+  assert.equal(importedRouteZip.data.name, 'route-zip')
+  const deletedRouteZip = await invoke('/__dsh-capability-switch/skill/delete-batch', 'POST', { items: [{ path: importedRouteZip.data.path }], confirm: true })
+  assert.equal(deletedRouteZip.status, 200)
+  assert.equal(deletedRouteZip.data.deleted.length, 1)
   const updateCheck = await invoke('/__dsh-capability-switch/update/check', 'POST', {})
   assert.equal(updateCheck.status, 200)
   assert.equal(updateCheck.data.state, 'available')
@@ -917,7 +994,7 @@ try {
   assert.equal(config.servers['tool-refused'], undefined)
   approvalOutcome = 'allowed-once'
 
-  console.log('Skills sync, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
+  console.log('Skills sync modes, batch delete, ZIP import, releases, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
 } finally {
   if (resolve(temp).startsWith(resolve(tmpdir()))) await fs.rm(temp, { recursive: true, force: true })
 }
