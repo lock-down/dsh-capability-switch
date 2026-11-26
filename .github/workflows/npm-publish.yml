@@ -1,0 +1,69 @@
+name: Publish to npm
+
+# 触发方式：在 GitHub 上发布（Publish）一个 Release。
+# 发布前请确保 package.json 的 version 与 Release tag 一致（tag 可带 v 前缀）。
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write # OIDC：Trusted Publishing 与 provenance 必需
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Show Node and npm versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Check version matches release tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          TAG_VERSION="${TAG#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          echo "Release tag:  $TAG"
+          echo "package.json: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::package.json 版本 ($PKG_VERSION) 与 Release tag ($TAG_VERSION) 不一致，已中止发布。"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Resolve dist-tag
+        id: dist
+        run: |
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            echo "tag=next" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag "${{ steps.dist.outputs.tag }}"
+        # 如果改用 NPM_TOKEN 而不是 Trusted Publisher，取消下面两行注释：
+        # env:
+        #   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
