@@ -1,6 +1,6 @@
 {
   "name": "dsh-capability-switch",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "A DSH sidebar plugin for skill-loading takeover, Skill synchronization, and MCP management.",
   "license": "MIT",
   "author": "lock-down",
@@ -28,11 +28,11 @@
   },
   "files": [
     "lib",
+    "README*.md",
     "cordis.patch.yml",
     "locale/*.json",
     "docs",
     "icon.svg",
-    "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gerenciamento de Skills e MCP",
+    "description": "Gerencie Skills e servidores MCP na barra lateral do DSH. A descoberta de skills é controlada no Host: o diretório global ~/.agents/skills não entra no catálogo do modelo e apenas os skills selecionados são sincronizados. Pesquise, crie (inclusive a partir de pacotes ZIP), edite, ative e exclua skills de usuário e projeto, com exibição do modo link simbólico ou cópia. O MCP aceita entradas do Manager e independentes em formulário ou JSON, testes de conexão, reconexão e importação. A interface segue o idioma do DSH; o conteúdo de skills e MCP permanece no idioma original."
+  }
+}

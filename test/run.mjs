@@ -37,6 +37,28 @@ assert.match(clientSource, /\/skill\/import-zip/)
 assert.match(clientSource, /batchDeleteTitle/)
 assert.match(clientSource, /releaseTitle/)
 assert.match(clientSource, /dsh-caps-row-selectable/)
+assert.match(clientSource, /useLocaleRevision/)
+assert.match(clientSource, /localeService\.subscribe/)
+assert.match(clientSource, /label: \(\) => t\('title'\)/)
+const messagesStart = clientSource.indexOf('const MESSAGES = ')
+const messagesEnd = clientSource.indexOf('\n\n    function t', messagesStart)
+assert.ok(messagesStart >= 0 && messagesEnd > messagesStart)
+const messages = Function('return ' + clientSource.slice(messagesStart + 'const MESSAGES = '.length, messagesEnd))()
+const localeIds = Object.keys(messages).sort()
+assert.deepEqual(localeIds, ['de', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'zh'])
+const messageKeys = Object.keys(messages.en).sort()
+for (const locale of localeIds) {
+  assert.deepEqual(Object.keys(messages[locale]).sort(), messageKeys, locale + ' keys')
+  for (const key of messageKeys) {
+    assert.equal(typeof messages[locale][key], 'string', locale + '.' + key)
+    assert.ok(messages[locale][key].length > 0, locale + '.' + key + ' is empty')
+  }
+}
+for (const key of messageKeys) {
+  const placeholders = value => [...value.matchAll(/\{([a-zA-Z]+)\}/g)].map(match => match[1]).sort()
+  assert.deepEqual(placeholders(messages.en[key]), placeholders(messages.zh[key]), key + ' placeholders zh')
+  for (const locale of localeIds) assert.deepEqual(placeholders(messages[locale][key]), placeholders(messages.en[key]), locale + '.' + key + ' placeholders')
+}
 const temp = await fs.mkdtemp(join(tmpdir(), 'dsh-caps-test-'))
 assert.ok(temp.startsWith(tmpdir()))
 process.env.DSH_HOME = temp
@@ -203,6 +225,24 @@ try {
   assert.equal(releaseCalls, 1)
   const failedReleases = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: false, status: 503, json: async () => [] }) })
   await assert.rejects(() => failedReleases.load(), /HTTP 503/)
+  const localReleaseReader = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: true, json: async () => [
+    { tag_name: 'v1.6.1', name: '1.6.1', body: 'GitHub original', published_at: '2026-11-27T00:00:00Z', html_url: 'https://github.com/lock-down/dsh-capability-switch/releases/tag/v1.6.1', prerelease: false },
+  ] }) })
+  const jaRelease = await localReleaseReader.load({ lang: 'ja' })
+  assert.match(jaRelease.releases[0].body, /plugin UI now has complete i18n/)
+  const zhRelease = await localReleaseReader.load({ lang: 'zh' })
+  assert.match(zhRelease.releases[0].body, /插件界面新增完整 i18n/)
+  const enRelease = await localReleaseReader.load({ lang: 'en' })
+  assert.match(enRelease.releases[0].body, /plugin UI now has complete i18n/)
+  for (const lang of ['zh', 'en', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
+    const meta = JSON.parse(await fs.readFile(join(root, 'locale', lang + '.json'), 'utf8'))
+    assert.ok(meta.meta?.title, lang + ' metadata title')
+    assert.ok(meta.meta?.description, lang + ' metadata description')
+    await fs.access(join(root, 'README.' + (lang === 'zh' ? 'md' : lang + '.md')))
+  }
+  for (const lang of ['zh', 'en']) {
+    assert.ok((await fs.readFile(join(root, 'docs', 'releases', '1.6.1.' + lang + '.md'), 'utf8')).length > 100, lang + ' release note')
+  }
 
   const deleteSource = join(temp, 'agents', 'skills', 'link-delete')
   await fs.mkdir(deleteSource, { recursive: true })
@@ -994,7 +1034,7 @@ try {
   assert.equal(config.servers['tool-refused'], undefined)
   approvalOutcome = 'allowed-once'
 
-  console.log('Skills sync modes, batch delete, ZIP import, releases, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
+  console.log('UI i18n (8 locales), Skills sync modes, batch delete, ZIP import, localized releases, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
 } finally {
   if (resolve(temp).startsWith(resolve(tmpdir()))) await fs.rm(temp, { recursive: true, force: true })
 }

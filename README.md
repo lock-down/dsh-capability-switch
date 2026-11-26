@@ -1,3 +1,5 @@
+<p align="right"><a href="README.md">中文</a> | <a href="README.en.md">English</a> | <a href="README.ja.md">日本語</a> | <a href="README.es.md">Español</a> | <a href="README.fr.md">Français</a> | <a href="README.de.md">Deutsch</a> | <a href="README.ru.md">Русский</a> | <a href="README.pt.md">Português</a></p>
+
 # DSH 技能与 MCP 管理
 
 一个 DSH 侧边栏插件，用来管理本机的 Skills 和 MCP。界面使用 DSH 主题令牌，不嵌入 iframe，入口固定为 `技能与MCP`。
@@ -5,6 +7,14 @@
 它在 Host 层接管 DSH 的技能扫描结果，默认不把 `~/.agents/skills` 全量加载到系统技能目录。只有你明确同步的技能才会进入 DSH，让 DSH 的技能列表保持干净、可控。
 
 ![Skills 管理界面](docs/screenshots/overview.png)
+
+## 多语言
+
+插件界面跟随 **DSH 设置 → 通用设置 → 语言**，支持 DSH 当前提供的 8 种语言：中文、English、日本語、Español、Français、Deutsch、Русский、Português。
+
+切换 DSH 语言后，插件界面会自动更新。Skills 和 MCP 的列表内容不做翻译：技能名称、描述、SKILL.md 内容、命令和 URL 都按原语言呈现。
+
+插件元数据已为 8 种语言提供本地化标题和说明。README 提供 8 种语言版本；Release Note 提供中文和英文版本，完整参考文档保留中文和英文。
 
 ## 接管 DSH 技能加载
 
@@ -138,12 +148,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.0.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.1.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.0"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.1"
 ```
 
 ## 自动更新
@@ -292,6 +302,7 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - 面板路由的 required 鉴权声明、冷会话观测租约释放与 DSH 0.2.3 兼容检查
 - npm registry 更新检查、稳定版本筛选、无更新状态和本地安装拒绝自动更新
 - 更新操作与 Skills、MCP 列表状态及 busy 状态隔离
+- UI 词典覆盖 DSH 的 8 种语言，键集合与占位符一致，语言切换自动重绘
 
 主要文件：
 
@@ -303,6 +314,8 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - `lib/mcp.js`：MCP 管理和独立实例操作
 - `lib/update.js`：npm 自动更新检查、下载和 DSH 插件管理器更新
 - `lib/imports.js`：其他应用的 MCP 配置读取
+- `locale/*.json`：插件标题和说明的 8 语言元数据
+- `docs/releases`：当前版本 Release 说明的多语言副本
 
 ## 许可证
 

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Skills- und MCP-Verwaltung",
+    "description": "Verwalte Skills und MCP-Server in der DSH-Seitenleiste. Die Skill-Erkennung wird im Host übernommen: Das globale ~/.agents/skills-Verzeichnis gelangt nicht in den Modellkatalog, und nur ausdrücklich ausgewählte Skills werden synchronisiert. Unterstützt Suche, Erstellen (auch aus ZIP-Paketen), Bearbeiten, Umschalten und Löschen von Skills auf Benutzer- und Projektebene sowie die Anzeige des Softlink- oder Kopiermodus. MCP unterstützt Manager- und eigenständige Einträge per Formular oder JSON, Verbindungstests, Neuverbindung und Importe. Die Oberfläche folgt der DSH-Sprache; Skill- und MCP-Inhalte bleiben in ihrer Originalsprache."
+  }
+}
