@@ -107,6 +107,7 @@ Agent 工具创建并注册工作区前，先按当前会话的文件策略检�
 ### MCP
 
 - 新增、编辑、启停、删除、连接测试和重新连接。
+- 支持勾选多个 MCP 批量删除；独立实例会先备份 profile 补丁，部分失败会逐项反馈。
 - 管理 MCP Manager 中的配置，也能显示直接挂载的独立 `@deepseek-ai/dsh-mcp-client` 实例。
 - 独立实例可直接编辑连接参数、启停和删除。删除前会备份 profile 补丁，再移除对应配置行。
 - 连接类型支持 `stdio` 和 `SSE / Streamable HTTP`。SSE 配置统一由 DSH 的 Streamable HTTP 传输承载。
@@ -148,12 +149,12 @@ npm install --ignore-scripts
 
 在 DSH 中打开“插件”，选择“添加插件”，然后选择这个目录。安装完成后，左侧边栏会出现 `技能与MCP`。
 
-也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.2.tgz`，解压后按上面的目录方式安装。
+也可以下载 GitHub Release 中的 `dsh-capability-switch-1.6.3.tgz`，解压后按上面的目录方式安装。
 
 从 GitHub 固定版本安装（Git 安装不会自动更新）：
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.2"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.3"
 ```
 
 ## 自动更新
@@ -225,6 +226,12 @@ dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capabilit
 2. 查看最新 Release 的说明和发布日期。
 3. 展开“历史版本”查看旧 Release 说明，或打开 GitHub 查看完整页面。
 
+### 批量删除 MCP
+
+1. 在 MCP 标签勾选要删除的 MCP，可先“全选”或按当前搜索过滤后全选。
+2. 点击“批量删除”，确认列表和数量。
+3. 删除逐项执行，运行中的连接会关闭；独立实例会先备份 profile 补丁，部分失败会显示原因。
+
 ### 导入 MCP
 
 1. 切到 MCP 标签，点击“从应用导入”。
@@ -290,6 +297,7 @@ pwsh -File test/run-windows.ps1 -NodePath 'C:\Program Files\nodejs\node.exe'
 - 独立 MCP 编辑、只读权限、启停、补丁删除和备份
 - MCP 启动操作的宿主审批、拒绝后不写入配置、审批期间配置变化时拒绝执行、缺少审批上下文时失败关闭，以及 HTTP 与停用操作不请求审批
 - 插件注册型 MCP 的连接测试与重启审批
+- MCP 批量删除的成功、失败与部分完成
 - 批量保存 MCP 的整批校验与一次写入
 - MCP 名称拒绝保留键，面板连接测试显示后端错误
 - 更新应用前的安装来源、候选版本与返回值校验

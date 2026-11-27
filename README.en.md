@@ -98,7 +98,7 @@ Project `.dsh/skills` is managed by DSH and shown read-only. The global `~/.agen
 
 ### MCP
 
-- Add, edit, enable, disable, delete, test, and reconnect MCP servers.
+- Add, edit, enable, disable, delete, test, and reconnect MCP servers. Select multiple MCPs for batch deletion; standalone instances back up the profile patch first, and partial failures are reported per item.
 - Manage MCP Manager entries and show standalone `@deepseek-ai/dsh-mcp-client` instances mounted directly in the profile.
 - Standalone instances support editing connection parameters, toggling, and deletion. Before deletion the profile patch is backed up, then the matching configuration row is removed.
 - Transports include `stdio` and `SSE / Streamable HTTP`. SSE configuration is carried by DSH's Streamable HTTP transport.
@@ -157,12 +157,12 @@ npm install --ignore-scripts
 
 In DSH, open **Plugins**, choose **Add plugin**, and select this directory. After installation, `Skills & MCP` appears in the left sidebar.
 
-You can also download `dsh-capability-switch-1.6.2.tgz` from a GitHub Release and install it as a directory.
+You can also download `dsh-capability-switch-1.6.3.tgz` from a GitHub Release and install it as a directory.
 
 Install a pinned GitHub version (Git installs do not auto-update):
 
 ```bash
-dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.2"
+dsh plugin --profile desktop add "git+https://github.com/lock-down/dsh-capability-switch.git#v1.6.3"
 ```
 
 ## Auto update
@@ -234,6 +234,12 @@ Limits: the archive may be at most 8 MiB; extracted content at most 20 MiB and 2
 2. Read the latest release notes and publication date.
 3. Expand **Earlier releases** for older notes, or open GitHub for the full page.
 
+### Batch delete MCPs
+
+1. In the MCP tab, select the MCPs to delete. Use **Select all**, optionally after filtering by search.
+2. Select **Delete selected** and confirm the list and count.
+3. Deletion runs per item; running connections close, standalone instances back up the profile patch first, and partial failures show their reasons.
+
 ### Import MCP
 
 1. Switch to the MCP tab and select **Import from apps**.
@@ -299,6 +305,7 @@ Regression coverage includes:
 - Standalone MCP editing, read-only permissions, toggling, patch deletion, and backups
 - Host approval for MCP start operations, rejection before writes, changed configuration during approval, missing approval context, and no prompts for HTTP or disabled operations
 - Approval for connection tests and restarts of plugin-registered MCPs
+- MCP batch delete success, failure, and partial completion
 - Whole-batch validation and a single write for batch MCP save
 - Reserved names rejected for MCP and backend errors shown by panel connection tests
 - Install source, candidate version, and return-value checks before applying updates

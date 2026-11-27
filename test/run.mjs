@@ -44,6 +44,9 @@ assert.match(clientSource, /params\.set\('workspaces', '1'\)/)
 assert.doesNotMatch(clientSource, /tab === 'skills' \? '1' : '0'/)
 assert.match(clientSource, /const localeRevision = useLocaleRevision\(\)/)
 assert.match(clientSource, /setNotice\(''\)/)
+assert.match(clientSource, /const \[selectedMcps, setSelectedMcps\]/)
+assert.match(clientSource, /\/mcp\/delete-batch/)
+assert.match(clientSource, /mcpBatchDeleteText/)
 const messagesStart = clientSource.indexOf('const MESSAGES = ')
 const messagesEnd = clientSource.indexOf('\n\n    function t', messagesStart)
 assert.ok(messagesStart >= 0 && messagesEnd > messagesStart)
@@ -230,14 +233,14 @@ try {
   const failedReleases = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: false, status: 503, json: async () => [] }) })
   await assert.rejects(() => failedReleases.load(), /HTTP 503/)
   const localReleaseReader = releaseLib.createReleaseReader({ fetchImpl: async () => ({ ok: true, json: async () => [
-    { tag_name: 'v1.6.2', name: '1.6.1', body: 'GitHub original', published_at: '2026-11-27T00:00:00Z', html_url: 'https://github.com/lock-down/dsh-capability-switch/releases/tag/v1.6.2', prerelease: false },
+    { tag_name: 'v1.6.3', name: '1.6.1', body: 'GitHub original', published_at: '2026-11-27T00:00:00Z', html_url: 'https://github.com/lock-down/dsh-capability-switch/releases/tag/v1.6.3', prerelease: false },
   ] }) })
   const jaRelease = await localReleaseReader.load({ lang: 'ja' })
-  assert.match(jaRelease.releases[0].body, /Fix inconsistent Skills and MCP tab counts/)
+  assert.match(jaRelease.releases[0].body, /MCP now supports batch selection and deletion/)
   const zhRelease = await localReleaseReader.load({ lang: 'zh' })
-  assert.match(zhRelease.releases[0].body, /修复 Skills 与 MCP 标签计数不一致/)
+  assert.match(zhRelease.releases[0].body, /MCP 支持批量选择与删除/)
   const enRelease = await localReleaseReader.load({ lang: 'en' })
-  assert.match(enRelease.releases[0].body, /Fix inconsistent Skills and MCP tab counts/)
+  assert.match(enRelease.releases[0].body, /MCP now supports batch selection and deletion/)
   for (const lang of ['zh', 'en', 'ja', 'es', 'fr', 'de', 'ru', 'pt']) {
     const meta = JSON.parse(await fs.readFile(join(root, 'locale', lang + '.json'), 'utf8'))
     assert.ok(meta.meta?.title, lang + ' metadata title')
@@ -245,7 +248,7 @@ try {
     await fs.access(join(root, 'README.' + (lang === 'zh' ? 'md' : lang + '.md')))
   }
   for (const lang of ['zh', 'en']) {
-    assert.ok((await fs.readFile(join(root, 'docs', 'releases', '1.6.2.' + lang + '.md'), 'utf8')).length > 100, lang + ' release note')
+    assert.ok((await fs.readFile(join(root, 'docs', 'releases', '1.6.3.' + lang + '.md'), 'utf8')).length > 100, lang + ' release note')
   }
 
   const deleteSource = join(temp, 'agents', 'skills', 'link-delete')
@@ -473,6 +476,18 @@ try {
   await assert.rejects(() => mcp.deleteMcp(ctx, 'local', false), /确认/)
   await mcp.deleteMcp(ctx, 'local', true)
   assert.equal(config.servers.local, undefined)
+  config.servers['batch-mcp-a'] = { name: 'batch-mcp-a', transport: 'stdio', command: 'a', args: [], env: {}, cwd: '', enabled: true }
+  config.servers['batch-mcp-b'] = { name: 'batch-mcp-b', transport: 'stdio', command: 'b', args: [], env: {}, cwd: '', enabled: true }
+  await assert.rejects(() => mcp.deleteMcps(ctx, ['batch-mcp-a'], false), /确认/)
+  const batchMcp = await mcp.deleteMcps(ctx, ['batch-mcp-a', 'batch-mcp-b'], true)
+  assert.equal(batchMcp.total, 2)
+  assert.equal(batchMcp.deleted.length, 2)
+  assert.equal(batchMcp.failed.length, 0)
+  assert.equal(config.servers['batch-mcp-a'], undefined)
+  config.servers['batch-mcp-c'] = { name: 'batch-mcp-c', transport: 'stdio', command: 'c', args: [], env: {}, cwd: '', enabled: true }
+  const partialMcp = await mcp.deleteMcps(ctx, ['batch-mcp-c', 'missing-mcp'], true)
+  assert.equal(partialMcp.deleted.length, 1)
+  assert.equal(partialMcp.failed.length, 1)
 
   const approvalRequests = []
   const recordApproval = async request => { approvalRequests.push(request) }
@@ -801,7 +816,7 @@ try {
     },
   }
   host.apply(hostCtx, {})
-  assert.equal(routes.size, 24)
+  assert.equal(routes.size, 25)
   assert.ok([...routes.values()].every(route => route.auth === 'required'))
   assert.equal(agentTool.output.schema.type, 'object')
   const listed = await agentTool.execute({ action: 'list' })
@@ -878,6 +893,13 @@ try {
   const deletedRouteZip = await invoke('/__dsh-capability-switch/skill/delete-batch', 'POST', { items: [{ path: importedRouteZip.data.path }], confirm: true })
   assert.equal(deletedRouteZip.status, 200)
   assert.equal(deletedRouteZip.data.deleted.length, 1)
+  config.servers['route-mcp-a'] = { name: 'route-mcp-a', transport: 'stdio', command: 'a', args: [], env: {}, cwd: '', enabled: false }
+  config.servers['route-mcp-b'] = { name: 'route-mcp-b', transport: 'stdio', command: 'b', args: [], env: {}, cwd: '', enabled: false }
+  const deletedRouteMcps = await invoke('/__dsh-capability-switch/mcp/delete-batch', 'POST', { names: ['route-mcp-a', 'route-mcp-b'], confirm: true })
+  assert.equal(deletedRouteMcps.status, 200)
+  assert.equal(deletedRouteMcps.data.deleted.length, 2)
+  assert.equal(config.servers['route-mcp-a'], undefined)
+  assert.equal(config.servers['route-mcp-b'], undefined)
   const updateCheck = await invoke('/__dsh-capability-switch/update/check', 'POST', {})
   assert.equal(updateCheck.status, 200)
   assert.equal(updateCheck.data.state, 'available')
@@ -1038,7 +1060,7 @@ try {
   assert.equal(config.servers['tool-refused'], undefined)
   approvalOutcome = 'allowed-once'
 
-  console.log('UI i18n (8 locales), Skills sync modes, batch delete, ZIP import, localized releases, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
+  console.log('UI i18n (8 locales), Skills and MCP batch delete, ZIP import, localized releases, MCP listing/import/control, approval gates, workspace authorization, Host routes, and agent tool passed.')
 } finally {
   if (resolve(temp).startsWith(resolve(tmpdir()))) await fs.rm(temp, { recursive: true, force: true })
 }
